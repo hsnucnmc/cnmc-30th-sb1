@@ -1,7 +1,9 @@
+use ordered_float::OrderedFloat;
+
 #[derive(Debug, Clone, Copy)]
 pub struct TrainView {
-    pub left: f64,
-    pub right: f64,
+    pub left: OrderedFloat::<f64>,
+    pub right: OrderedFloat::<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +43,10 @@ impl std::str::FromStr for ClientPacket {
                     Err(_) => return Err("Packet contains a bad right boundary"),
                 };
 
+                if left >= right {
+                    return Err("Packet contains an invalid range")
+                }
+
                 Ok(ClientPacket::PacketPOSITION(TrainView { left, right }))
             }
             _ => Err("Packet contained a unexpected type identifier"),
@@ -64,7 +70,7 @@ impl std::fmt::Display for ServerPacket {
             }
 
             Self::PacketRIGHT(move_time) => {
-                write!(f, "left\n{}", move_time)
+                write!(f, "right\n{}", move_time)
             }
         }
     }
