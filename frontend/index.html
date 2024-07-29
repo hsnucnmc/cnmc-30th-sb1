@@ -33,7 +33,7 @@
                 let x_pos = (1 - (time - movement_start) / run_time) * main_canvas.clientWidth;
                 main_context.fillRect(x_pos-25, 0, 50, 50);
                 if (x_pos < 0) {
-                    status = "right";
+                    status = "nothing";
                 }
             }
             window.requestAnimationFrame(redraw);
