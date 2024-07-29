@@ -8,9 +8,10 @@
 </head>
 
 <body>
-    <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser instead.</canvas>
+    <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser
+        instead.</canvas>
     <script>
-        let status = "nothing";
+        let status = "left";
         let movement_time = 0; // <= 1s
         let movement_start = 0;
 
@@ -23,19 +24,29 @@
 
             if (status == "right") {
                 let x_pos = (time - movement_start) / run_time * main_canvas.clientWidth;
-                main_context.fillRect(x_pos-25, 0, 50, 50);
+                main_context.fillRect(x_pos - 25, 0, 50, 50);
                 if (x_pos > main_canvas.clientWidth) {
                     status = "nothing";
+                    movement_start = time;
                 }
             }
 
             if (status == "left") {
                 let x_pos = (1 - (time - movement_start) / run_time) * main_canvas.clientWidth;
-                main_context.fillRect(x_pos-25, 0, 50, 50);
+                main_context.fillRect(x_pos - 25, 0, 50, 50);
                 if (x_pos < 0) {
                     status = "nothing";
+                    movement_start = time;
                 }
             }
+
+            if (status == "nothing") {
+                if (time - movement_start > 3000.0) {
+                    status = "right";
+                    movement_start = time;
+                }
+            }
+
             window.requestAnimationFrame(redraw);
         }
 
