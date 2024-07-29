@@ -1,0 +1,14 @@
+POS	= "position\n%10f %10f"
+
+LEFT	= "left\n%10f"
+RIGHT	= "right\n%10f"
+
+> position 0 1000
+
+< left
+
+< right
+
+< left
+
+< right
