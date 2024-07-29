@@ -22,6 +22,10 @@
             main_context.fillStyle = "#00AAFF";
             main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
 
+            if (movement_start == -1) {
+                movement_start = time;
+            }
+
             if (status == "right") {
                 let x_pos = (time - movement_start) / run_time * main_canvas.clientWidth;
                 main_context.fillRect(x_pos - 25, 0, 50, 50);
@@ -40,17 +44,34 @@
                 }
             }
 
-            if (status == "nothing") {
-                if (time - movement_start > 3000.0) {
-                    status = "right";
-                    movement_start = time;
-                }
-            }
-
             window.requestAnimationFrame(redraw);
         }
 
         window.requestAnimationFrame(redraw);
+
+        let url = new URL(window.location.href);
+        console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+        let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+
+        socket.onopen = (event) => {
+            socket.send("position\n0 4000");
+            socket.onmessage = (msg) => {
+                console.log(msg);
+                let msg_split = msg.data.split("\n");
+                let row_count = 1;
+                console.log(msg_split);
+                switch (msg_split[0]) {
+                    case "right":
+                        status = "right";
+                        movement_start = -1;
+                        break;
+                    case "left":
+                        status = "left";
+                        movement_start = -1;
+                        break;
+                }
+            };
+        };
     </script>
 </body>
 
