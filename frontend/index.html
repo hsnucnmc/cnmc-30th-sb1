@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser instead.</canvas>
+    <script>
+        let status = "nothing";
+        let movement_time = 0; // <= 1s
+        let movement_start = 0;
+
+        function redraw(time) {
+            let main_canvas = document.getElementById("main-canvas");
+            let main_context = main_canvas.getContext("2d");
+            let run_time = 1000.0; //ms
+            main_context.fillStyle = "#00AAFF";
+            main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
+
+            if (status == "right") {
+                let x_pos = (time - movement_start) / run_time * main_canvas.clientWidth;
+                main_context.fillRect(x_pos-25, 0, 50, 50);
+                if (x_pos > main_canvas.clientWidth) {
+                    status = "nothing";
+                }
+            }
+
+            if (status == "left") {
+                let x_pos = (1 - (time - movement_start) / run_time) * main_canvas.clientWidth;
+                main_context.fillRect(x_pos-25, 0, 50, 50);
+                if (x_pos < 0) {
+                    status = "right";
+                }
+            }
+            window.requestAnimationFrame(redraw);
+        }
+
+        window.requestAnimationFrame(redraw);
+    </script>
+</body>
+
+</html>
