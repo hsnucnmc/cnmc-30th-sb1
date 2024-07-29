@@ -11,14 +11,17 @@
     <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser
         instead.</canvas>
     <script>
-        let status = "left";
+        let status = "nothing";
         let movement_time = 0; // <= 1s
         let movement_start = 0;
+        let run_time = 1000.0; //ms
 
+        let left_bound = Number(window.prompt("Left bound?", "0"));
+        let right_bound = Number(window.prompt("Left bound?", "4000"));
+        
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
-            let run_time = 1000.0; //ms
             main_context.fillStyle = "#00AAFF";
             main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
 
@@ -54,7 +57,7 @@
         let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
 
         socket.onopen = (event) => {
-            socket.send("position\n0 4000");
+            socket.send("position\n"+ left_bound +" "+ right_bound);
             socket.onmessage = (msg) => {
                 console.log(msg);
                 let msg_split = msg.data.split("\n");
@@ -70,6 +73,8 @@
                         movement_start = -1;
                         break;
                 }
+                run_time = msg_split[1] * 1000;
+                console.log(run_time);
             };
         };
     </script>
