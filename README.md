@@ -8,6 +8,10 @@
 
 ## 使用工具
 
-- [ ] HTML/CSS/JS/WebSocket
-- [ ] Rust/Axum
+- HTML/CSS/JS/WebSocket
+- Rust/Axum
 
+## 製作人員
+
+- lsjle
+- Maatflow
