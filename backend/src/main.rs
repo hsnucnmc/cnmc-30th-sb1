@@ -329,6 +329,7 @@ async fn main() {
         .route("/ws", get(ws_get_handler))
         .with_state(shared_state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
+    let listener = tokio::net::TcpListener::bind(location).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
