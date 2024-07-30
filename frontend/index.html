@@ -40,6 +40,7 @@
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
+
             main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
             main_context.fillStyle = "#553300";
             main_context.fillRect(0, 255, main_canvas.clientWidth, 3);
@@ -57,19 +58,36 @@
 
             if (status == "right") {
                 let x_pos = (time - movement_start) / run_time * (main_canvas.clientWidth + train_width) - train_width;
-                main_context.fillRect(x_pos, 0, 50, 50);
+                // main_context.fillRect(x_pos, 0, 50, 50);
+                // main_context.drawImage(img, x_pos, y_pos);
+                
+                main_context.save();
+                main_context.translate(x_pos+175, y_pos+131);
+                main_context.rotate((Math.PI/180)*(360)*(time - movement_start) / run_time);
+                main_context.translate(-x_pos-175, -y_pos-131);
+                // main_context.fillRect(x_pos+150, y_pos+106, 50, 50);
                 main_context.drawImage(img, x_pos, y_pos);
-
+                main_context.restore();
+                
+                main_context.fillRect(x_pos+150, y_pos+106, 50, 50);
                 if (x_pos > main_canvas.clientWidth) {
                     status = "nothing";
-                    movement_start = time;
+                    movement_start = time;                    
                 }
             }
 
             if (status == "left") {
                 let x_pos = (1 - (time - movement_start) / run_time) * (main_canvas.clientWidth + train_width) - train_width;
-                main_context.fillRect(x_pos, 0, 50, 50);
-                main_context.drawImage(img, x_pos, y_pos); 
+                // main_context.fillRect(x_pos, 0, 50, 50);
+                // main_context.drawImage(img, x_pos, y_pos); 
+
+                main_context.save();
+                main_context.translate(x_pos+175, y_pos+131);
+                main_context.rotate((Math.PI/180)*(360)*(time - movement_start) / run_time);
+                main_context.translate(-x_pos-175, -y_pos-131);
+                // main_context.fillRect(x_pos+150, y_pos+106, 50, 50);
+                main_context.drawImage(img, x_pos, y_pos);
+                main_context.restore();
 
                 if (x_pos < -train_width) {
                     status = "nothing";
