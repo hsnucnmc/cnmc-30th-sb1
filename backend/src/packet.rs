@@ -55,22 +55,24 @@ impl std::str::FromStr for ClientPacket {
 }
 
 pub type MoveTime = f64;
+pub type YPos = f64;
+pub type ImageSrc = String;
 
 #[derive(Debug, Clone)]
 pub enum ServerPacket {
-    PacketLEFT(MoveTime),
-    PacketRIGHT(MoveTime),
+    PacketLEFT(MoveTime, YPos, ImageSrc),
+    PacketRIGHT(MoveTime, YPos, ImageSrc),
 }
 
 impl std::fmt::Display for ServerPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::PacketLEFT(move_time) => {
-                write!(f, "left\n{}", move_time)
+            Self::PacketLEFT(move_time, y_pos, image_src) => {
+                write!(f, "left\n{} {} {}", move_time, y_pos, image_src)
             }
 
-            Self::PacketRIGHT(move_time) => {
-                write!(f, "right\n{}", move_time)
+            Self::PacketRIGHT(move_time, y_pos, image_src) => {
+                write!(f, "right\n{} {} {}", move_time, y_pos, image_src)
             }
         }
     }

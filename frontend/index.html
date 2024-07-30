@@ -32,6 +32,11 @@
         let left_bound = Number(window.prompt("Left bound?", "0"));
         let right_bound = Number(window.prompt("Right bound?", "4000"));
 
+
+        
+        let derail_img = new Image();
+        derail_img.src = "derail.png";
+
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
@@ -106,6 +111,10 @@
                 img.src = image_name;
 
                 console.log(run_time);
+            };
+            socket.onclose = (msg) => {
+                main_canvas.hidden = true;
+                document.getElementById("main-canvas").parentElement.append(derail_img);
             };
         };
     </script>

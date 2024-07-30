@@ -87,7 +87,17 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         .send((position, subscribe_request_tx))
         .await
         .unwrap();
-    let mut update_receiver = substribe_request_rx.await.unwrap();
+    let mut update_receiver = match substribe_request_rx.await {
+        Ok(rx) => rx,
+        Err(_) => {
+            println!("Failed to subscribe to train updates");
+            socket
+                .send(axum::extract::ws::Message::Close(Option::None))
+                .await
+                .unwrap();
+            return;
+        }
+    };
     loop {
         tokio::select! {
             biased;
@@ -202,7 +212,7 @@ async fn train_master(
                 std::ops::Bound::Excluded(&train_pos),
                 std::ops::Bound::Included(&right_bound),
             ));
-            range.next().unwrap()
+            range.next().unwrap() // We should always have at least one next thing in our range: the boundary object
         } else {
             let mut range = train_pos_set.range((
                 std::ops::Bound::Included(&left_bound),
@@ -219,14 +229,21 @@ async fn train_master(
 
             _ = wait_time => {
                 let mut reached_end = false;
-                for object in train_pos_set.get_vec(&next_stop).unwrap() {
+                for object in train_pos_set.get_vec(&next_stop).unwrap() { // We're guranteed to have at least one object at the stop
                         match object {
                             PositionObject::ViewLeftBound(id) => {
                                 if going_right {
                                     // entering a left bound
-                                    let (tx, length) = train_channels.get(id).unwrap();
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            return;
+                                        }
+                                    }; // TODO DODODODODO
+
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketRIGHT(*passing_time))
+
+                                    tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into()))
                                         .await
                                         .unwrap();
                                 }
@@ -236,7 +253,7 @@ async fn train_master(
                                     // entering a right bound
                                     let (tx, length) = train_channels.get(id).unwrap();
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketLEFT(*passing_time))
+                                    tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into()))
                                         .await
                                         .unwrap();
                                 }
@@ -260,7 +277,7 @@ async fn train_master(
                                     // entering a left bound
                                     let (tx, length) = train_channels.get(id).unwrap();
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketRIGHT(*passing_time))
+                                    tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into()))
                                         .await
                                         .unwrap();
                                 }
@@ -270,7 +287,7 @@ async fn train_master(
                                     // entering a right bound
                                     let (tx, length) = train_channels.get(id).unwrap();
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketLEFT(*passing_time))
+                                    tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into()))
                                         .await
                                         .unwrap();
                                 }
@@ -287,6 +304,10 @@ async fn train_master(
                 let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(4);
 
                 assert!(new_view.left<new_view.right);
+                if new_view.left < left_bound || right_bound < new_view.right {
+                    // invalid boundary for current track
+                    continue;
+                }
 
                 response_tx.send(notify_rx).unwrap();
 
