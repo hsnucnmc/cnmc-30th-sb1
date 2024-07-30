@@ -11,12 +11,8 @@
     <canvas id="main-canvas" style="width: 100%; height: 100%; margin: 0px;">Use newer browser
         instead.</canvas>
     <script>
-        const imgR = new Image(); // Create new img element
-        imgR.src =
-            "train_right.png";
-        const imgL = new Image(); 
-        imgL.src =
-        "train_left.png";
+        let img = -1;
+        let image_name = "train_right.png";
         const train_width = 350; // TODO: adjust with image size
 
         const main_canvas = document.getElementById("main-canvas");
@@ -39,17 +35,25 @@
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
-            main_context.fillStyle = "#00AAFF";
             main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
+            main_context.fillStyle = "#553300";
+            main_context.fillRect(0, 255, main_canvas.clientWidth, 3);
+            main_context.fillStyle = "#00AAFF";
 
             if (movement_start == -1) {
                 movement_start = time;
             }
 
+            if (img == -1) {
+                if(!image_name) image_name = "train_right.png";
+                img = new Image(); // Create new img element
+                img.src = image_name;
+            }
+
             if (status == "right") {
                 let x_pos = (time - movement_start) / run_time * (main_canvas.clientWidth + train_width) - train_width;
                 main_context.fillRect(x_pos, 0, 50, 50);
-                main_context.drawImage(imgR, x_pos, 0);
+                main_context.drawImage(img, x_pos, y_pos);
 
                 if (x_pos > main_canvas.clientWidth) {
                     status = "nothing";
@@ -60,7 +64,7 @@
             if (status == "left") {
                 let x_pos = (1 - (time - movement_start) / run_time) * (main_canvas.clientWidth + train_width) - train_width;
                 main_context.fillRect(x_pos, 0, 50, 50);
-                main_context.drawImage(imgL, x_pos, 0);
+                main_context.drawImage(img, x_pos, y_pos); 
 
                 if (x_pos < -train_width) {
                     status = "nothing";
@@ -94,7 +98,13 @@
                         movement_start = -1;
                         break;
                 }
-                run_time = msg_split[1] * 1000;
+                let msg_split_2 = msg_split[1].split(" ");
+                run_time = msg_split_2[0] * 1000;
+                y_pos =  msg_split_2[1];
+                image_name = msg_split_2[2];
+                img = new Image(); // Create new img element
+                img.src = image_name;
+
                 console.log(run_time);
             };
         };
