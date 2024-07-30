@@ -253,25 +253,44 @@ async fn train_master(
                                     let (tx, length) = match train_channels.get(id) {
                                         Some(stuff) => stuff,
                                         None => {
-                                            return;
+                                            // Channel is already dead, we should also delete this entry.@
+                                            // TODO
+                                            continue;
                                         }
-                                    }; // TODO DODODODODO
+                                    };
 
                                     let passing_time = length / train_speed;
 
-                                    tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into()))
-                                        .await
-                                        .unwrap();
+                                    // if tx failed sending, we delete the Channel
+                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
                                 }
                             }
                             PositionObject::ViewRightBound(id) => {
                                 if !going_right {
                                     // entering a right bound
-                                    let (tx, length) = train_channels.get(id).unwrap();
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into()))
-                                        .await
-                                        .unwrap();
+                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
                                 }
                         }
                         PositionObject::TrackLeftEnd => {
@@ -291,21 +310,45 @@ async fn train_master(
                             PositionObject::ViewLeftBound(id) => {
                                 if going_right {
                                     // entering a left bound
-                                    let (tx, length) = train_channels.get(id).unwrap();
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+                                    
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into()))
-                                        .await
-                                        .unwrap();
+                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
                                 }
                             }
                             PositionObject::ViewRightBound(id) => {
                                 if !going_right {
                                     // entering a right bound
-                                    let (tx, length) = train_channels.get(id).unwrap();
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+
                                     let passing_time = length / train_speed;
-                                    tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into()))
-                                        .await
-                                        .unwrap();
+                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
                                 }
                         }
                         _ => {}
