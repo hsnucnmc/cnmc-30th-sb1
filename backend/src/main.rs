@@ -20,6 +20,13 @@ async fn ws_get_handler(
     ws.on_upgrade(|socket| ws_client_handler(socket, state))
 }
 
+async fn derail_handler(
+    State(state): State<AppState>,
+) {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    state.view_request_tx.send((TrainView { left: 0.into(), right: 0.into()}, tx)).await.unwrap();
+}
+
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     println!("New websocket connection has established...");
 
@@ -152,7 +159,16 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
             }
 
             update = update_receiver.recv() => {
-                socket.send(update.unwrap().into()).await.unwrap();
+                match update {
+                    Some(update) => {
+                        socket.send(update.into()).await.unwrap();
+                    }
+                    None => {
+                        println!("Failed to subscribe to train updates");
+                        break;
+                    }
+                }
+                
             }
         };
     }
@@ -348,6 +364,7 @@ async fn main() {
             tower_http::services::ServeDir::new(assets_dir).append_index_html_on_directories(true),
         ))
         .route("/ws", get(ws_get_handler))
+        .route("/force-derail", get(derail_handler))
         .with_state(shared_state);
 
     let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
