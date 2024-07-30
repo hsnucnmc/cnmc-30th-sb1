@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="top: 0px; margin: 0px; bottom: 0px; height: 100%;">
 
 <head>
     <meta charset="UTF-8">
@@ -7,10 +7,21 @@
     <title>Document</title>
 </head>
 
-<body>
-    <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser
+<body style="margin: 0px; overflow: hidden;">
+    <canvas id="main-canvas" style="width: 100%; height: 100%; margin: 0px;">Use newer browser
         instead.</canvas>
     <script>
+        
+        const main_canvas = document.getElementById("main-canvas");
+
+        function resizeCanvas() {
+            main_canvas.width = window.innerWidth;
+            main_canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
         let status = "nothing";
         let movement_time = 0; // <= 1s
         let movement_start = 0;
