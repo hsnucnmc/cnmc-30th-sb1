@@ -105,7 +105,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                     // }
                     // Ok(axum::extract::ws::Message::Text(text)) => text,
                     Ok(_) => {
-                        println!("Received unexpected non-text packet from client...");
+                        println!("Received unexpected packet from client...");
                         break;
                     }
                 };
