@@ -11,7 +11,14 @@
     <canvas id="main-canvas" style="width: 100%; height: 100%; margin: 0px;">Use newer browser
         instead.</canvas>
     <script>
-        
+        const imgR = new Image(); // Create new img element
+        imgR.src =
+            "train_right.png";
+        const imgL = new Image(); 
+        imgL.src =
+        "train_left.png";
+        const train_width = 350; // TODO: adjust with image size
+
         const main_canvas = document.getElementById("main-canvas");
 
         function resizeCanvas() {
@@ -23,13 +30,12 @@
         resizeCanvas();
 
         let status = "nothing";
-        let movement_time = 0; // <= 1s
         let movement_start = 0;
         let run_time = 1000.0; //ms
 
         let left_bound = Number(window.prompt("Left bound?", "0"));
-        let right_bound = Number(window.prompt("Left bound?", "4000"));
-        
+        let right_bound = Number(window.prompt("Right bound?", "4000"));
+
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
@@ -41,8 +47,10 @@
             }
 
             if (status == "right") {
-                let x_pos = (time - movement_start) / run_time * main_canvas.clientWidth;
-                main_context.fillRect(x_pos - 25, 0, 50, 50);
+                let x_pos = (time - movement_start) / run_time * (main_canvas.clientWidth + train_width) - train_width;
+                main_context.fillRect(x_pos, 0, 50, 50);
+                main_context.drawImage(imgR, x_pos, 0);
+
                 if (x_pos > main_canvas.clientWidth) {
                     status = "nothing";
                     movement_start = time;
@@ -50,9 +58,11 @@
             }
 
             if (status == "left") {
-                let x_pos = (1 - (time - movement_start) / run_time) * main_canvas.clientWidth;
-                main_context.fillRect(x_pos - 25, 0, 50, 50);
-                if (x_pos < 0) {
+                let x_pos = (1 - (time - movement_start) / run_time) * (main_canvas.clientWidth + train_width) - train_width;
+                main_context.fillRect(x_pos, 0, 50, 50);
+                main_context.drawImage(imgL, x_pos, 0);
+
+                if (x_pos < -train_width) {
                     status = "nothing";
                     movement_start = time;
                 }
