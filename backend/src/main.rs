@@ -186,12 +186,30 @@ async fn train_master(
         ),
         (
             TrackPiece {
-                path: Bezier::Bezier3(Coord(500f64, 100f64), Coord(500f64, 500f64), Coord(100f64, 500f64)),
-                color: "#66FFCC".into(),
+                path: Bezier::Bezier2(Coord(500f64, 100f64), Coord(900f64, 300f64)),
+                color: "#66E5E5".into(),
                 thickness: 5f64,
                 length: 500f64,
             },
             1,
+        ),
+        (
+            TrackPiece {
+                path: Bezier::Bezier3(Coord(900f64, 300f64), Coord(900f64, 500f64), Coord(500f64, 500f64)),
+                color: "#66FFCC".into(),
+                thickness: 5f64,
+                length: 500f64,
+            },
+            2,
+        ),
+        (
+            TrackPiece {
+                path: Bezier::Bezier4(Coord(500f64, 500f64),Coord(300f64, 300f64), Coord(100f64, 700f64), Coord(100f64, 500f64)),
+                color: "#66E5E5".into(),
+                thickness: 5f64,
+                length: 500f64,
+            },
+            3,
         ),
     ];
 
@@ -341,6 +359,9 @@ async fn train_master(
                 ).collect())).await.unwrap();
                 notify_tx.send(ServerPacket::PacketTRAIN(0, 0, 0f64, tokio::time::Duration::from_millis(10000), "train_right_debug.png".into())).await.unwrap();
                 notify_tx.send(ServerPacket::PacketTRAIN(1, 1, 0f64, tokio::time::Duration::from_millis(20000), "train_right_debug.png".into())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(2, 2, 0f64, tokio::time::Duration::from_millis(15000), "train_right_debug.png".into())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(3, 3, 0f64, tokio::time::Duration::from_millis(8000), "train_right_debug.png".into())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(4, 3, 0f64, tokio::time::Duration::from_millis(12000), "train_left_debug.png".into())).await.unwrap();
                 viewer_channels.push(notify_tx);
             }
         }
