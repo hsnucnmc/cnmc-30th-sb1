@@ -180,7 +180,7 @@ console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.p
 let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
 
 socket.onopen = (event) => {
-    socket.send("position\n" + left_bound + " " + right_bound);
+    // socket.send("position\n" + left_bound + " " + right_bound);
     socket.onmessage = (msg) => {
         console.log(msg);
         let msg_split = msg.data.split("\n");
@@ -188,7 +188,7 @@ socket.onopen = (event) => {
         let row_count = 1;
         //prase here
         switch (msg_split[0]) {
-            case train:
+            case "train":
                 // code block
                 args = msg_split[1].split(" ");
                 // train_id=args[0];
@@ -199,13 +199,13 @@ socket.onopen = (event) => {
                 img = new Image();
                 img.src = msg_split[2];
                 break;
-            case track:
+            case "track":
                 // console.log("not yet implment");
                 trackcount = msg_split[1];
                 for (i = 2; i < msg_split.length; i++) {
                     args = msg_split[i].split(" ");
                     dotlist = args[1].split(";");
-                    dotlsit.shift();//remove first item
+                    dotlist.shift();//remove first item
                     drawtrack(args[0], dotlist, args[2], args[3]);//lgtm
                 }
                 break;
