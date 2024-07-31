@@ -8,48 +8,19 @@ const main_canvas = document.getElementById("main-canvas");
 function resizeCanvas() {
     main_canvas.width = window.innerWidth;
     main_canvas.height = window.innerHeight;
-}
+}    
 
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+
+let derail_img = new Image();
+derail_img.src = "derail.png";
 
 let status = "nothing";
 let movement_start = 0;
 let run_time = 1000.0; //?ms
 
-let left_bound = Number(document.cookie.split("; ").find(row => row.startsWith("left_bound="))?.split("=")[1]);
-let ask_attempt = 0;
-tracklist = new Map();
-
-while (Number.isNaN(left_bound) || left_bound < 0 || 4000 < left_bound) {
-    left_bound = Number(window.prompt("Left bound?", "0"));
-    ask_attempt++;
-    if (ask_attempt > 10) {
-        left_bound = 0;
-    }
-}
-
-let right_bound = Number(document.cookie.split("; ").find(row => row.startsWith("right_bound="))?.split("=")[1]);
-ask_attempt = 0;
-while (Number.isNaN(right_bound) || right_bound < 0 || 4000 < right_bound || left_bound == right_bound) {
-    right_bound = Number(window.prompt("Right bound?", "4000"));
-    ask_attempt++;
-    if (ask_attempt > 10) {
-        right_bound = 4000;
-    }
-}
-
-if (left_bound > right_bound) {
-    let swap = left_bound;
-    left_bound = right_bound;
-    right_bound = swap;
-}
-
-document.cookie = "left_bound=" + left_bound;
-document.cookie = "right_bound=" + right_bound;
-
-let derail_img = new Image();
-derail_img.src = "derail.png";
+let tracklist = new Map();
 
 function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degree, object_x, object_y, img) {
     ctx.save();
@@ -60,6 +31,7 @@ function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degr
     ctx.drawImage(img, object_x, object_y);
     ctx.restore();
 }
+
 function bezierDerivative(coords, t) {
     const n = (coords.length / 2) - 1; // Number of control points
 
@@ -89,6 +61,7 @@ function bezierDerivative(coords, t) {
         throw new Error("Unsupported number of control points. Supported types are quadratic (3 points) and cubic (4 points).");
     }
 }
+
 function drawtrack(id, cordlist, color, thickness) {
     /**
      * @param id id
@@ -114,12 +87,14 @@ function drawtrack(id, cordlist, color, thickness) {
     tracklist.set(id, cordlist);
     // TODO untest but should be good
 }
+
 function redraw(trainlist, st, duration) {
     /**
     * @param trainlist a list of param including (trainid, trackid)
     * @param st starting time
     * @param duration uh the duration?
     */
+
     let main_canvas = document.getElementById("main-canvas");
     let main_context = main_canvas.getContext("2d");
 
@@ -222,6 +197,7 @@ socket.onopen = (event) => {
 window.addEventListener("click", function (event) {
     mousePos = { x: event.clientX, y: event.clientY };
     //TODO finish this
+    socket.send("click\n" + "0");
     //if mousePos is on anyone of the trains
     // mousePosText.textContent = `(${mousePos.x}, ${mousePos.y})`;
     //     click return which train have been clicked and its id one number
