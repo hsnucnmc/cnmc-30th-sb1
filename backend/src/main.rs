@@ -3,8 +3,6 @@ use axum::{extract::ws, routing::get, Router};
 
 use train_backend::packet::*;
 
-use ordered_float::OrderedFloat;
-
 #[derive(Clone)]
 struct AppState {
     view_request_tx: tokio::sync::mpsc::Sender<
@@ -128,7 +126,7 @@ async fn train_master(
             tokio::sync::mpsc::Sender<TrainID>,
         )>,
     >,
-    mut valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>,
+    valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>,
 ) {
     struct TrackPiece {
         path: Bezier,         // px
@@ -152,11 +150,11 @@ async fn train_master(
 
     println!("Server Started");
 
-    let trains = vec![
+    let mut trains = vec![
         TrainInstance {
             properties: TrainProperties {
                 speed: 500f64,
-                image: "train_right.png".into(),
+                image: "train_right_debug.png".into(),
             },
             current_track: 0,
             progress: 0.0,
@@ -164,9 +162,9 @@ async fn train_master(
         TrainInstance {
             properties: TrainProperties {
                 speed: 250f64,
-                image: "train_2_right.png".into(),
+                image: "train_right_debug.png".into(),
             },
-            current_track: 1,
+            current_track: 0,
             progress: 0.0,
         },
     ];
@@ -177,7 +175,11 @@ async fn train_master(
     let tracks = vec![
         (
             TrackPiece {
-                path: Bezier::Bezier3(Coord(100f64, 500f64), Coord(100f64, 100f64), Coord(500f64, 100f64)),
+                path: Bezier::Bezier3(
+                    Coord(100f64, 500f64),
+                    Coord(100f64, 100f64),
+                    Coord(500f64, 100f64),
+                ),
                 color: "#66CCFF".into(),
                 thickness: 5f64,
                 length: 500f64,
@@ -195,7 +197,11 @@ async fn train_master(
         ),
         (
             TrackPiece {
-                path: Bezier::Bezier3(Coord(900f64, 300f64), Coord(900f64, 500f64), Coord(500f64, 500f64)),
+                path: Bezier::Bezier3(
+                    Coord(900f64, 300f64),
+                    Coord(900f64, 500f64),
+                    Coord(500f64, 500f64),
+                ),
                 color: "#66FFCC".into(),
                 thickness: 5f64,
                 length: 500f64,
@@ -204,7 +210,12 @@ async fn train_master(
         ),
         (
             TrackPiece {
-                path: Bezier::Bezier4(Coord(500f64, 500f64),Coord(300f64, 300f64), Coord(100f64, 700f64), Coord(100f64, 500f64)),
+                path: Bezier::Bezier4(
+                    Coord(500f64, 500f64),
+                    Coord(300f64, 300f64),
+                    Coord(100f64, 700f64),
+                    Coord(100f64, 500f64),
+                ),
                 color: "#66E5E5".into(),
                 thickness: 5f64,
                 length: 500f64,
@@ -213,155 +224,96 @@ async fn train_master(
         ),
     ];
 
-    let mut viewer_channels = Vec::new();
+    let mut viewer_channels: Vec<tokio::sync::mpsc::Sender<ServerPacket>> = Vec::new();
     let (click_tx, mut click_rx) = tokio::sync::mpsc::channel(32);
 
     loop {
         let wait_start = tokio::time::Instant::now();
 
-        // calculate when will the next train reach the end of it's track
-        // let (next_stop, next_stop_trains) = {
-        //     let mut next_stop = 
-        //     for
-        // }
-        // let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(
-        //     (*next_stop - *train_pos).abs() / train_speed,
-        // ));
+        // calculate when will the next train reach the end of it's current track
+        let wait_time = trains
+            .iter()
+            .map(|train| {
+                ordered_float::OrderedFloat(
+                    tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                        / train.properties.speed,
+                )
+            })
+            .min()
+            .unwrap();
+
+        let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait_time.0));
         tokio::select! {
             biased;
 
-            // _ = wait_time => {
-            //     let mut reached_end = false;
-            //     for object in train_pos_set.get_vec(&next_stop).unwrap() { // We're guranteed to have at least one object at the stop
-            //             match object {
-            //                 PositionObject::ViewLeftBound(id) => {
-            //                     if going_right {
-            //                         // entering a left bound
-            //                         let (tx, length) = match viewer_channels.get(id) {
-            //                             Some(stuff) => stuff,
-            //                             None => {
-            //                                 // Channel is already dead, we should also delete this entry.@
-            //                                 // TODO
-            //                                 continue;
-            //                             }
-            //                         };
+            _ = wait_time => {
+                let wait_end = tokio::time::Instant::now();
+                for (i, train) in trains.iter_mut().enumerate() {
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    if train.progress >= 1f64 {
+                        train.current_track += 1;
+                        if train.current_track >= tracks.len() as u32 {
+                            train.current_track = 0;
+                        }
+                        train.progress = 0f64; // TODO: actually calculate progress
 
-            //                         let passing_time = length / train_speed;
-
-            //                         // if tx failed sending, we delete the Channel
-            //                         match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
-            //                             Ok(_) => {},
-            //                             Err(_) => {
-            //                                 viewer_channels.remove(id);
-            //                                 println!("Removed failed client handler from channel list");
-            //                             },
-            //                         }
-            //                     }
-            //                 }
-            //                 PositionObject::ViewRightBound(id) => {
-            //                     if !going_right {
-            //                         // entering a right bound
-            //                         let (tx, length) = match viewer_channels.get(id) {
-            //                             Some(stuff) => stuff,
-            //                             None => {
-            //                                 // Channel is already dead, we should also delete this entry.
-            //                                 // TODO
-            //                                 continue;
-            //                             }
-            //                         };
-
-            //                         let passing_time = length / train_speed;
-            //                         match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
-            //                             Ok(_) => {},
-            //                             Err(_) => {
-            //                                 viewer_channels.remove(id);
-            //                                 println!("Removed failed client handler from channel list");
-            //                             },
-            //                         }
-            //                     }
-            //             }
-            //             PositionObject::TrackLeftEnd => {
-            //                 reached_end = true;
-            //             }
-            //             PositionObject::TrackRightEnd => {
-            //                 reached_end = true;
-            //             }
-            //         }
-            //     }
-            //     train_pos = next_stop;
-            //     if reached_end {
-            //         going_right = !going_right;
-            //         // handle boundary cases
-            //         for object in train_pos_set.get_vec(&train_pos).unwrap() {
-            //             match object {
-            //                 PositionObject::ViewLeftBound(id) => {
-            //                     if going_right {
-            //                         // entering a left bound
-            //                         let (tx, length) = match viewer_channels.get(id) {
-            //                             Some(stuff) => stuff,
-            //                             None => {
-            //                                 // Channel is already dead, we should also delete this entry.
-            //                                 // TODO
-            //                                 continue;
-            //                             }
-            //                         };
-
-            //                         let passing_time = length / train_speed;
-            //                         match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
-            //                             Ok(_) => {},
-            //                             Err(_) => {
-            //                                 viewer_channels.remove(id);
-            //                                 println!("Removed failed client handler from channel list");
-            //                             },
-            //                         }
-            //                     }
-            //                 }
-            //                 PositionObject::ViewRightBound(id) => {
-            //                     if !going_right {
-            //                         // entering a right bound
-            //                         let (tx, length) = match viewer_channels.get(id) {
-            //                             Some(stuff) => stuff,
-            //                             None => {
-            //                                 // Channel is already dead, we should also delete this entry.
-            //                                 // TODO
-            //                                 continue;
-            //                             }
-            //                         };
-
-            //                         let passing_time = length / train_speed;
-            //                         match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
-            //                             Ok(_) => {},
-            //                             Err(_) => {
-            //                                 viewer_channels.remove(id);
-            //                                 println!("Removed failed client handler from channel list");
-            //                             },
-            //                         }
-            //                     }
-            //             }
-            //             _ => {}
-            //             }
-            //         }
-            //     }
-            // }
+                        for channel in &mut viewer_channels {
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            / train.properties.speed), train.properties.image.clone())).await;
+                        }
+                    }
+                }
+            }
             clicked = click_rx.recv() => {
                 let clicked = clicked.unwrap();
                 println!("Train#{} is clicked", clicked);
+                
+                let wait_end = tokio::time::Instant::now();
+                for (i, train) in trains.iter_mut().enumerate() {
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    if train.progress >= 1f64 {
+                        train.current_track += 1;
+                        if train.current_track >= tracks.len() as u32 {
+                            train.current_track = 0;
+                        }
+                        train.progress = 0f64; // TODO: actually calculate progress
+
+                        for channel in &mut viewer_channels {
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            / train.properties.speed), train.properties.image.clone())).await;
+                        }
+                    }
+                }
             }
 
             request_result = view_request_rx.recv() => {
                 // received new view request
                 let response_tx = request_result.unwrap();
                 let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(4);
-                
+
                 response_tx.send((notify_rx, click_tx.clone())).unwrap();
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
                     |a| (a.1, a.0.path, a.0.color.clone(), a.0.thickness)
                 ).collect())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(0, 0, 0f64, tokio::time::Duration::from_millis(10000), "train_right_debug.png".into())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(1, 1, 0f64, tokio::time::Duration::from_millis(20000), "train_right_debug.png".into())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(2, 2, 0f64, tokio::time::Duration::from_millis(15000), "train_right_debug.png".into())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(3, 3, 0f64, tokio::time::Duration::from_millis(8000), "train_right_debug.png".into())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(4, 3, 0f64, tokio::time::Duration::from_millis(12000), "train_left_debug.png".into())).await.unwrap();
+                                
+                let wait_end = tokio::time::Instant::now();
+                for (i, train) in trains.iter_mut().enumerate() {
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    if train.progress >= 1f64 {
+                        train.current_track += 1;
+                        if train.current_track >= tracks.len() as u32 {
+                            train.current_track = 0;
+                        }
+                        train.progress = 0f64; // TODO: actually calculate progress
+
+                        for channel in &mut viewer_channels {
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            / train.properties.speed), train.properties.image.clone())).await;
+                        }
+                    }
+                    notify_tx.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                    / train.properties.speed), train.properties.image.clone())).await;
+                }
                 viewer_channels.push(notify_tx);
             }
         }
