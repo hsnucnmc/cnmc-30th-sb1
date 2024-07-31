@@ -7,10 +7,13 @@ use ordered_float::OrderedFloat;
 
 #[derive(Clone)]
 struct AppState {
-    view_request_tx: tokio::sync::mpsc::Sender<(
-        TrainView,
-        tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<ServerPacket>>,
-    )>,
+    view_request_tx: tokio::sync::mpsc::Sender<
+        tokio::sync::oneshot::Sender<(
+            tokio::sync::mpsc::Receiver<ServerPacket>,
+            tokio::sync::mpsc::Sender<TrainID>,
+        )>,
+    >,
+    valid_id: tokio::sync::watch::Receiver<std::collections::BTreeSet<TrainID>>,
 }
 
 async fn ws_get_handler(
@@ -20,81 +23,17 @@ async fn ws_get_handler(
     ws.on_upgrade(|socket| ws_client_handler(socket, state))
 }
 
-async fn derail_handler(
-    State(state): State<AppState>,
-) {
-    let (tx, _) = tokio::sync::oneshot::channel();
-    state.view_request_tx.send((TrainView { left: 0.into(), right: 0.into()}, tx)).await.unwrap();
-}
-
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     println!("New websocket connection has established...");
-
-    let response = match tokio::time::timeout(tokio::time::Duration::from_secs(10), socket.recv())
-        .await
-    {
-        Err(_) => {
-            println!("A websocket connection took too long to send a POSITION...");
-            socket
-                .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
-            return;
-        }
-        Ok(None) => {
-            println!("A websocket connection abruptly closed before sending a OLLEH response...");
-            socket
-                .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
-            return;
-        }
-        Ok(Some(Err(_))) => {
-            println!("A websocket connection caused a error before sending a OLLEH response...");
-            socket
-                .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
-            return;
-        }
-        Ok(Some(Ok(response))) => response,
-    };
-
-    let text_response = match response {
-        ws::Message::Close(_) => {
-            println!("A websocket connection closed before sending a response...");
-            return;
-        }
-        ws::Message::Text(text_response) => text_response,
-        _ => {
-            println!("A websocket connection sent a response that's not a text message...");
-            socket
-                .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
-            return;
-        }
-    };
-
-    let position = match text_response.parse::<ClientPacket>() {
-        Err(err) => {
-            println!("A websocket connection sent a packet expected to be a POSITION but failed parsing:\n\t{}", err);
-            socket
-                .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
-            return;
-        }
-        Ok(ClientPacket::PacketPOSITION(position)) => position,
-    };
 
     let (subscribe_request_tx, substribe_request_rx) = tokio::sync::oneshot::channel();
     state
         .view_request_tx
-        .send((position, subscribe_request_tx))
+        .send(subscribe_request_tx)
         .await
         .unwrap();
-    let mut update_receiver = match substribe_request_rx.await {
+
+    let (mut update_receiver, click_sender) = match substribe_request_rx.await {
         Ok(rx) => rx,
         Err(_) => {
             println!("Failed to subscribe to train updates");
@@ -105,57 +44,49 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
             return;
         }
     };
+
     loop {
         tokio::select! {
             biased;
 
             packet = socket.recv() => {
                 let packet = packet.unwrap();
-                let _ = match packet {
+                let packet = match packet {
                     Err(_) => {
                         println!("A websocket connection produced a error (probably abruptly closed)...");
                         break;
                     }
-                    // Ok(axum::extract::ws::Message::Close(_)) => {
-                    //     println!("Client leaved...");
-                    //     break;
-                    // }
-                    // Ok(axum::extract::ws::Message::Text(text)) => text,
+                    Ok(ws::Message::Text(packet)) => packet,
                     Ok(_) => {
-                        println!("Received unexpected packet from client...");
+                        println!("A websocket connection sent a packet with an unexpected type...");
                         break;
                     }
                 };
 
-                // let packet = match packet.parse::<ClientPacket>() {
-                //     Err(err) => {
-                //         println!("A websocket connection sent a packet expected to be a MOVE but failed parsing:\n\t{}", err);
-                //         break;
-                //     }
-                //     Ok(packet) => packet,
-                // };
+                let packet = match packet.parse::<ClientPacket>() {
+                    Err(err) => {
+                        println!("A websocket connection sent a packet expected to be a CLICK but failed parsing:\n\t{}", err);
+                        break;
+                    }
+                    Ok(packet) => packet,
+                };
 
-                // match packet {
-                //     ClientPacket::PacketOLLEH(_) => {
-                //         println!("A websocket connection sent a packet expected to be a MOVE but is a OLLEH");
-                //         break;
-                //     }
-                //     ClientPacket::PacketMOVE(index, action) => {
-                //         if index >= bomb_count {
-                //             println!("A websocket connection sent a MOVE packet with a index out of bound");
-                //             break;
-                //         }
-                //         match &bomb_actions[index as usize] {
-                //             None => {
-                //                 println!("A websocket connection sent a MOVE packet while not holding the specified bomb");
-                //                 break;
-                //             }
-                //             _ => {}
-                //         }
-                //         bomb_actions[index as usize].take().unwrap().send(Ok(action)).unwrap();
-                //         bomb_counter[index as usize]+=1;
-                //     }
-                // }
+                match packet {
+                    ClientPacket::PacketCLICK(train_id) => {
+                        if !state.valid_id.borrow().contains(&train_id) {
+                            println!("A websocket connection sent a packet expected to be a CLICK but contains invalid train id");
+                            break;
+                        } else {
+                            match click_sender.send(train_id).await {
+                                Ok(_) => (),
+                                Err(_) => {
+                                    println!("Failed sending click updates to train master");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             update = update_receiver.recv() => {
@@ -168,7 +99,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                         break;
                     }
                 }
-                
+
             }
         };
     }
@@ -187,11 +118,21 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
 }
 
 async fn train_master(
-    mut view_request_rx: tokio::sync::mpsc::Receiver<(
-        TrainView,
-        tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<ServerPacket>>,
-    )>,
+    mut view_request_rx: tokio::sync::mpsc::Receiver<
+        tokio::sync::oneshot::Sender<(
+            tokio::sync::mpsc::Receiver<ServerPacket>,
+            tokio::sync::mpsc::Sender<TrainID>,
+        )>,
+    >,
+    mut valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>
 ) {
+    struct TrackPiece {
+        path: Bezier, // px
+        color: Color, // #FFFFFF
+        thickness: Thickness, // px
+        length: f64, // px
+    }
+
     enum PositionObject {
         ViewLeftBound(u32),
         ViewRightBound(u32),
@@ -318,7 +259,7 @@ async fn train_master(
                                             continue;
                                         }
                                     };
-                                    
+
                                     let passing_time = length / train_speed;
                                     match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
                                         Ok(_) => {},
@@ -389,16 +330,18 @@ async fn train_master(
 
 #[tokio::main]
 async fn main() {
-    let (view_request_tx, view_request_rx) = tokio::sync::mpsc::channel::<(
-        TrainView,
-        tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<ServerPacket>>,
-    )>(32);
+    let (view_request_tx, view_request_rx) = tokio::sync::mpsc::channel(32);
 
-    tokio::spawn(async move { train_master(view_request_rx).await });
+    let (valid_id_tx, valid_id_rx) = tokio::sync::watch::channel(std::collections::BTreeSet::new());
+
+    tokio::spawn(async move { train_master(view_request_rx, valid_id_tx).await });
 
     // build our application with a single route
 
-    let shared_state = AppState { view_request_tx };
+    let shared_state = AppState {
+        view_request_tx,
+        valid_id: valid_id_rx,
+    };
 
     let assets_dir = std::path::PathBuf::from("../frontend/");
 
@@ -407,7 +350,7 @@ async fn main() {
             tower_http::services::ServeDir::new(assets_dir).append_index_html_on_directories(true),
         ))
         .route("/ws", get(ws_get_handler))
-        .route("/force-derail", get(derail_handler))
+        // .route("/force-derail", get(derail_handler))
         .with_state(shared_state);
 
     let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
