@@ -140,7 +140,7 @@ function redraw(time) {
 
         let cordlist = tracklist.get(train.track_id).cordlist;
         let current_t = (time - train.movement_start) / train.duration;
-        if (current_t > 1)
+        if (current_t > 1.1)
             return;
         let x_pos = 0;
         let y_pos = 0;
