@@ -48,7 +48,7 @@ impl std::fmt::Display for ServerPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::PacketTRAIN(train_id, track_id, start_t, duration, image_src) => {
-                write!(f, "train\n{} {} {} {} {}", train_id, track_id, start_t, duration.as_secs_f64() * 1000f64, image_src)
+                write!(f, "train\n{} {} {} {}\n{}", train_id, track_id, start_t, duration.as_secs_f64() * 1000f64, image_src)
             }
 
             Self::PacketTRACK(tracks) => {

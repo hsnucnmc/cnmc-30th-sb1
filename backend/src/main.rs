@@ -172,7 +172,7 @@ async fn train_master(
             TrackPiece {
                 path: Bezier::Bezier3(Coord(100f64, 500f64), Coord(100f64, 100f64), Coord(500f64, 100f64)),
                 color: "#66CCFF".into(),
-                thickness: 1f64,
+                thickness: 5f64,
                 length: 500f64,
             },
             1,
@@ -181,183 +181,155 @@ async fn train_master(
             TrackPiece {
                 path: Bezier::Bezier3(Coord(500f64, 100f64), Coord(500f64, 500f64), Coord(100f64, 500f64)),
                 color: "#66FFCC".into(),
-                thickness: 1f64,
+                thickness: 5f64,
                 length: 500f64,
             },
             1,
         ),
     ];
 
-    let mut train_channels: std::collections::BTreeMap<
-        u32,
-        (tokio::sync::mpsc::Sender<ServerPacket>, OrderedFloat<f64>),
-    > = std::collections::BTreeMap::new();
-
-    let mut next_viewer_id = 0;
+    let mut viewer_channels = Vec::new();
+    let (click_tx, click_rx) = tokio::sync::mpsc::channel(32);
 
     loop {
         let wait_start = tokio::time::Instant::now();
 
-        // calculate when will the train reach something
-        let next_stop = *if going_right {
-            let mut range = train_pos_set.range((
-                std::ops::Bound::Excluded(&train_pos),
-                std::ops::Bound::Included(&right_bound),
-            ));
-            range.next().unwrap() // We should always have at least one next thing in our range: the boundary object
-        } else {
-            let mut range = train_pos_set.range((
-                std::ops::Bound::Included(&left_bound),
-                std::ops::Bound::Excluded(&train_pos),
-            ));
-            range.next_back().unwrap()
-        }
-        .0;
-        let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(
-            (*next_stop - *train_pos).abs() / train_speed,
-        ));
+        // calculate when will the next train reach the end of it's track
+        // let (next_stop, next_stop_trains) = {
+        //     let mut next_stop = 
+        //     for
+        // }
+        // let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(
+        //     (*next_stop - *train_pos).abs() / train_speed,
+        // ));
         tokio::select! {
             biased;
 
-            _ = wait_time => {
-                let mut reached_end = false;
-                for object in train_pos_set.get_vec(&next_stop).unwrap() { // We're guranteed to have at least one object at the stop
-                        match object {
-                            PositionObject::ViewLeftBound(id) => {
-                                if going_right {
-                                    // entering a left bound
-                                    let (tx, length) = match train_channels.get(id) {
-                                        Some(stuff) => stuff,
-                                        None => {
-                                            // Channel is already dead, we should also delete this entry.@
-                                            // TODO
-                                            continue;
-                                        }
-                                    };
+            // _ = wait_time => {
+            //     let mut reached_end = false;
+            //     for object in train_pos_set.get_vec(&next_stop).unwrap() { // We're guranteed to have at least one object at the stop
+            //             match object {
+            //                 PositionObject::ViewLeftBound(id) => {
+            //                     if going_right {
+            //                         // entering a left bound
+            //                         let (tx, length) = match viewer_channels.get(id) {
+            //                             Some(stuff) => stuff,
+            //                             None => {
+            //                                 // Channel is already dead, we should also delete this entry.@
+            //                                 // TODO
+            //                                 continue;
+            //                             }
+            //                         };
 
-                                    let passing_time = length / train_speed;
+            //                         let passing_time = length / train_speed;
 
-                                    // if tx failed sending, we delete the Channel
-                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
-                                        Ok(_) => {},
-                                        Err(_) => {
-                                            train_channels.remove(id);
-                                            println!("Removed failed client handler from channel list");
-                                        },
-                                    }
-                                }
-                            }
-                            PositionObject::ViewRightBound(id) => {
-                                if !going_right {
-                                    // entering a right bound
-                                    let (tx, length) = match train_channels.get(id) {
-                                        Some(stuff) => stuff,
-                                        None => {
-                                            // Channel is already dead, we should also delete this entry.
-                                            // TODO
-                                            continue;
-                                        }
-                                    };
+            //                         // if tx failed sending, we delete the Channel
+            //                         match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+            //                             Ok(_) => {},
+            //                             Err(_) => {
+            //                                 viewer_channels.remove(id);
+            //                                 println!("Removed failed client handler from channel list");
+            //                             },
+            //                         }
+            //                     }
+            //                 }
+            //                 PositionObject::ViewRightBound(id) => {
+            //                     if !going_right {
+            //                         // entering a right bound
+            //                         let (tx, length) = match viewer_channels.get(id) {
+            //                             Some(stuff) => stuff,
+            //                             None => {
+            //                                 // Channel is already dead, we should also delete this entry.
+            //                                 // TODO
+            //                                 continue;
+            //                             }
+            //                         };
 
-                                    let passing_time = length / train_speed;
-                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
-                                        Ok(_) => {},
-                                        Err(_) => {
-                                            train_channels.remove(id);
-                                            println!("Removed failed client handler from channel list");
-                                        },
-                                    }
-                                }
-                        }
-                        PositionObject::TrackLeftEnd => {
-                            reached_end = true;
-                        }
-                        PositionObject::TrackRightEnd => {
-                            reached_end = true;
-                        }
-                    }
-                }
-                train_pos = next_stop;
-                if reached_end {
-                    going_right = !going_right;
-                    // handle boundary cases
-                    for object in train_pos_set.get_vec(&train_pos).unwrap() {
-                        match object {
-                            PositionObject::ViewLeftBound(id) => {
-                                if going_right {
-                                    // entering a left bound
-                                    let (tx, length) = match train_channels.get(id) {
-                                        Some(stuff) => stuff,
-                                        None => {
-                                            // Channel is already dead, we should also delete this entry.
-                                            // TODO
-                                            continue;
-                                        }
-                                    };
+            //                         let passing_time = length / train_speed;
+            //                         match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+            //                             Ok(_) => {},
+            //                             Err(_) => {
+            //                                 viewer_channels.remove(id);
+            //                                 println!("Removed failed client handler from channel list");
+            //                             },
+            //                         }
+            //                     }
+            //             }
+            //             PositionObject::TrackLeftEnd => {
+            //                 reached_end = true;
+            //             }
+            //             PositionObject::TrackRightEnd => {
+            //                 reached_end = true;
+            //             }
+            //         }
+            //     }
+            //     train_pos = next_stop;
+            //     if reached_end {
+            //         going_right = !going_right;
+            //         // handle boundary cases
+            //         for object in train_pos_set.get_vec(&train_pos).unwrap() {
+            //             match object {
+            //                 PositionObject::ViewLeftBound(id) => {
+            //                     if going_right {
+            //                         // entering a left bound
+            //                         let (tx, length) = match viewer_channels.get(id) {
+            //                             Some(stuff) => stuff,
+            //                             None => {
+            //                                 // Channel is already dead, we should also delete this entry.
+            //                                 // TODO
+            //                                 continue;
+            //                             }
+            //                         };
 
-                                    let passing_time = length / train_speed;
-                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
-                                        Ok(_) => {},
-                                        Err(_) => {
-                                            train_channels.remove(id);
-                                            println!("Removed failed client handler from channel list");
-                                        },
-                                    }
-                                }
-                            }
-                            PositionObject::ViewRightBound(id) => {
-                                if !going_right {
-                                    // entering a right bound
-                                    let (tx, length) = match train_channels.get(id) {
-                                        Some(stuff) => stuff,
-                                        None => {
-                                            // Channel is already dead, we should also delete this entry.
-                                            // TODO
-                                            continue;
-                                        }
-                                    };
+            //                         let passing_time = length / train_speed;
+            //                         match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+            //                             Ok(_) => {},
+            //                             Err(_) => {
+            //                                 viewer_channels.remove(id);
+            //                                 println!("Removed failed client handler from channel list");
+            //                             },
+            //                         }
+            //                     }
+            //                 }
+            //                 PositionObject::ViewRightBound(id) => {
+            //                     if !going_right {
+            //                         // entering a right bound
+            //                         let (tx, length) = match viewer_channels.get(id) {
+            //                             Some(stuff) => stuff,
+            //                             None => {
+            //                                 // Channel is already dead, we should also delete this entry.
+            //                                 // TODO
+            //                                 continue;
+            //                             }
+            //                         };
 
-                                    let passing_time = length / train_speed;
-                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
-                                        Ok(_) => {},
-                                        Err(_) => {
-                                            train_channels.remove(id);
-                                            println!("Removed failed client handler from channel list");
-                                        },
-                                    }
-                                }
-                        }
-                        _ => {}
-                        }
-                    }
-                }
-            }
+            //                         let passing_time = length / train_speed;
+            //                         match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+            //                             Ok(_) => {},
+            //                             Err(_) => {
+            //                                 viewer_channels.remove(id);
+            //                                 println!("Removed failed client handler from channel list");
+            //                             },
+            //                         }
+            //                     }
+            //             }
+            //             _ => {}
+            //             }
+            //         }
+            //     }
+            // }
 
             request_result = view_request_rx.recv() => {
                 // received new view request
-                let (new_view, response_tx) = request_result.unwrap();
+                let response_tx = request_result.unwrap();
                 let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(4);
-
-                assert!(new_view.left<new_view.right);
-                if new_view.left < left_bound || right_bound < new_view.right {
-                    // invalid boundary for current track
-                    continue;
-                }
-
-                response_tx.send(notify_rx).unwrap();
-
-                let new_viewer_id = next_viewer_id;
-                next_viewer_id += 1;
-                train_channels.insert(new_viewer_id, (notify_tx, new_view.right-new_view.left));
-
-                train_pos_set.insert(new_view.left, PositionObject::ViewLeftBound(new_viewer_id));
-                train_pos_set.insert(new_view.right, PositionObject::ViewRightBound(new_viewer_id));
-
-                if going_right {
-                    train_pos = train_pos + (tokio::time::Instant::now() - wait_start).as_secs_f64() * train_speed;
-                } else {
-                    train_pos = train_pos - (tokio::time::Instant::now() - wait_start).as_secs_f64() * train_speed;
-                }
+                
+                response_tx.send((notify_rx, click_tx.clone())).unwrap();
+                notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
+                    |a| (a.1, a.0.path, a.0.color.clone(), a.0.thickness)
+                ).collect())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(0, 0, 0f64, tokio::time::Duration::from_millis(10000), "train_right.png".into())).await.unwrap();
+                viewer_channels.push(notify_tx);
             }
         }
     }
