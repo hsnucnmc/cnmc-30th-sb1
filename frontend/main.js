@@ -131,10 +131,7 @@ function redraw(time) {
     });
 
     trainlist.forEach(train => {
-        // console.log(tracklist);
-        // console.log(train);
-
-        if (train.movement_start == -1) {
+        if (Number.isNaN(train.movement_start)) {
             train.movement_start = time - Number(train.start_t) * Number(train.duration);
         }
 
@@ -177,7 +174,7 @@ let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + u
 socket.onopen = (event) => {
     // socket.send("position\n" + left_bound + " " + right_bound);
     socket.onmessage = (msg) => {
-        console.log(msg);
+        // console.log(msg);
         let msg_split = msg.data.split("\n");
         // * ! BLIND start here
         let row_count = 1;
@@ -188,30 +185,28 @@ socket.onopen = (event) => {
                 args = msg_split[1].split(" ");
                 let new_train = {};
                 new_train.track_id = Number(args[1]);
-                new_train.start_t = args[2];
-                new_train.duration = args[3];
+                new_train.start_t = Number(args[2]);
+                new_train.duration = Number(args[3]);
                 new_train.img = new Image();
                 new_train.img.src = msg_split[2];
-                new_train.movement_start = -1;
+                new_train.movement_start = NaN;
 
-                trainlist.set(args[0], new_train);
+                trainlist.set(Number(args[0]), new_train);
                 break;
             case "track":
                 for (i = 2; i < msg_split.length; i++) {
                     args = msg_split[i].split(" ");
-
                     let track = {};
-                    let cordlist = args[1].split(";");
+                    let cordlist = args[1].split(";").map(x => Number(x));
                     cordlist.shift();
                     track.cordlist = cordlist
                     track.color = args[2];
-                    track.thickness = args[3];
+                    track.thickness = Number(args[3]);
 
                     tracklist.set(Number(args[0]), track);
                 }
                 break;
         }
-        console.log(run_time);
     };
     socket.onclose = (msg) => {
         main_canvas.hidden = true;
