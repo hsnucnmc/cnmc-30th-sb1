@@ -31,15 +31,33 @@
         let run_time = 1000.0; //ms
 
         let left_bound = Number(document.cookie.split("; ").find(row => row.startsWith("left_bound="))?.split("=")[1]);
-        while (Number.isNaN(left_bound)) {
+        let ask_attempt = 0;
+
+        while (Number.isNaN(left_bound) || left_bound < 0 || 4000 < left_bound) {
             left_bound = Number(window.prompt("Left bound?", "0"));
+            ask_attempt++;
+            if (ask_attempt > 10) {
+                left_bound = 0;
+            }
         }
-        document.cookie = "left_bound=" + left_bound;
 
         let right_bound = Number(document.cookie.split("; ").find(row => row.startsWith("right_bound="))?.split("=")[1]);
-        while (Number.isNaN(right_bound)) {
+        ask_attempt = 0;
+        while (Number.isNaN(right_bound) || right_bound < 0 || 4000 < right_bound || left_bound == right_bound) {
             right_bound = Number(window.prompt("Right bound?", "4000"));
+            ask_attempt++;
+            if (ask_attempt > 10) {
+                right_bound = 4000;
+            }
         }
+
+        if (left_bound > right_bound) {
+            let swap = left_bound;
+            left_bound = right_bound;
+            right_bound = swap;
+        }
+
+        document.cookie = "left_bound=" + left_bound;
         document.cookie = "right_bound=" + right_bound;
 
         let derail_img = new Image();
