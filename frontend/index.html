@@ -1,30 +1,101 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="top: 0px; margin: 0px; bottom: 0px; height: 100%;">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Train Animation</title>
 </head>
 
-<body>
-    <canvas id="main-canvas" width="1000" height="400" style="border: 1mm black solid;">Use newer browser
+<body style="margin: 0px; overflow: hidden;">
+    <canvas id="main-canvas" style="width: 100%; height: 100%; margin: 0px;">Use newer browser
         instead.</canvas>
     <script>
-        let status = "left";
-        let movement_time = 0; // <= 1s
+        let img = -1;
+        let image_name = "train_right.png";
+        const train_width = 350; // TODO: adjust with image size
+        const train_height = 263;
+
+        const main_canvas = document.getElementById("main-canvas");
+
+        function resizeCanvas() {
+            main_canvas.width = window.innerWidth;
+            main_canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        let status = "nothing";
         let movement_start = 0;
+        let run_time = 1000.0; //ms
+
+        let left_bound = Number(document.cookie.split("; ").find(row => row.startsWith("left_bound="))?.split("=")[1]);
+        let ask_attempt = 0;
+
+        while (Number.isNaN(left_bound) || left_bound < 0 || 4000 < left_bound) {
+            left_bound = Number(window.prompt("Left bound?", "0"));
+            ask_attempt++;
+            if (ask_attempt > 10) {
+                left_bound = 0;
+            }
+        }
+
+        let right_bound = Number(document.cookie.split("; ").find(row => row.startsWith("right_bound="))?.split("=")[1]);
+        ask_attempt = 0;
+        while (Number.isNaN(right_bound) || right_bound < 0 || 4000 < right_bound || left_bound == right_bound) {
+            right_bound = Number(window.prompt("Right bound?", "4000"));
+            ask_attempt++;
+            if (ask_attempt > 10) {
+                right_bound = 4000;
+            }
+        }
+
+        if (left_bound > right_bound) {
+            let swap = left_bound;
+            left_bound = right_bound;
+            right_bound = swap;
+        }
+
+        document.cookie = "left_bound=" + left_bound;
+        document.cookie = "right_bound=" + right_bound;
+
+        let derail_img = new Image();
+        derail_img.src = "derail.png";
+
+        function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degree, object_x, object_y, img) {
+            ctx.save();
+            ctx.translate(rotation_center_x, rotation_center_y);
+            ctx.rotate((Math.PI / 180) * rotation_degree);
+            ctx.translate(-rotation_center_x, -rotation_center_y);
+            // ctx.fillRect(rotation_center_x - 25, rotation_center_y - 25, 50, 50);
+            ctx.drawImage(img, object_x, object_y);
+            ctx.restore();
+        }
 
         function redraw(time) {
             let main_canvas = document.getElementById("main-canvas");
             let main_context = main_canvas.getContext("2d");
-            let run_time = 1000.0; //ms
-            main_context.fillStyle = "#00AAFF";
+
             main_context.clearRect(0, 0, main_canvas.clientWidth, main_canvas.clientHeight);
+            main_context.fillStyle = "#553300";
+            main_context.fillRect(0, 255, main_canvas.clientWidth, 3);
+            main_context.fillStyle = "#00AAFF";
+
+            if (movement_start == -1) {
+                movement_start = time;
+            }
+
+            if (img == -1) {
+                if (!image_name) image_name = "train_right.png";
+                img = new Image(); // Create new img element
+                img.src = image_name;
+            }
 
             if (status == "right") {
-                let x_pos = (time - movement_start) / run_time * main_canvas.clientWidth;
-                main_context.fillRect(x_pos - 25, 0, 50, 50);
+                let x_pos = (time - movement_start) / run_time * (main_canvas.clientWidth + train_width) - train_width;
+                drawRotatedImg(main_context, x_pos + train_width / 2, y_pos + train_height / 2, 1 * Math.sin(2 * Math.PI * 30 * (time - movement_start) / run_time), x_pos, y_pos, img);
+
                 if (x_pos > main_canvas.clientWidth) {
                     status = "nothing";
                     movement_start = time;
@@ -32,17 +103,11 @@
             }
 
             if (status == "left") {
-                let x_pos = (1 - (time - movement_start) / run_time) * main_canvas.clientWidth;
-                main_context.fillRect(x_pos - 25, 0, 50, 50);
-                if (x_pos < 0) {
-                    status = "nothing";
-                    movement_start = time;
-                }
-            }
+                let x_pos = (1 - (time - movement_start) / run_time) * (main_canvas.clientWidth + train_width) - train_width;
+                drawRotatedImg(main_context, x_pos + train_width / 2, y_pos + train_height / 2, 1 * Math.sin(2 * Math.PI * 30 * (1 - (time - movement_start) / run_time)), x_pos, y_pos, img);
 
-            if (status == "nothing") {
-                if (time - movement_start > 3000.0) {
-                    status = "right";
+                if (x_pos < -train_width) {
+                    status = "nothing";
                     movement_start = time;
                 }
             }
@@ -51,6 +116,42 @@
         }
 
         window.requestAnimationFrame(redraw);
+
+        let url = new URL(window.location.href);
+        console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+        let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+
+        socket.onopen = (event) => {
+            socket.send("position\n" + left_bound + " " + right_bound);
+            socket.onmessage = (msg) => {
+                console.log(msg);
+                let msg_split = msg.data.split("\n");
+                let row_count = 1;
+                console.log(msg_split);
+                switch (msg_split[0]) {
+                    case "right":
+                        status = "right";
+                        movement_start = -1;
+                        break;
+                    case "left":
+                        status = "left";
+                        movement_start = -1;
+                        break;
+                }
+                let msg_split_2 = msg_split[1].split(" ");
+                run_time = msg_split_2[0] * 1000;
+                y_pos = msg_split_2[1];
+                image_name = msg_split_2[2];
+                img = new Image(); // Create new img element
+                img.src = image_name;
+
+                console.log(run_time);
+            };
+            socket.onclose = (msg) => {
+                main_canvas.hidden = true;
+                document.getElementById("main-canvas").parentElement.append(derail_img);
+            };
+        };
     </script>
 </body>
 

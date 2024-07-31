@@ -1,7 +1,9 @@
 use axum::extract::State;
-use axum::{extract::ws, Router, routing::get};
+use axum::{extract::ws, routing::get, Router};
 
 use train_backend::packet::*;
+
+use ordered_float::OrderedFloat;
 
 #[derive(Clone)]
 struct AppState {
@@ -16,6 +18,13 @@ async fn ws_get_handler(
     State(state): State<AppState>,
 ) -> axum::response::Response {
     ws.on_upgrade(|socket| ws_client_handler(socket, state))
+}
+
+async fn derail_handler(
+    State(state): State<AppState>,
+) {
+    let (tx, _) = tokio::sync::oneshot::channel();
+    state.view_request_tx.send((TrainView { left: 0.into(), right: 0.into()}, tx)).await.unwrap();
 }
 
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
@@ -80,8 +89,22 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     };
 
     let (subscribe_request_tx, substribe_request_rx) = tokio::sync::oneshot::channel();
-    state.view_request_tx.send((position, subscribe_request_tx)).await.unwrap();
-    let mut update_receiver = substribe_request_rx.await.unwrap();
+    state
+        .view_request_tx
+        .send((position, subscribe_request_tx))
+        .await
+        .unwrap();
+    let mut update_receiver = match substribe_request_rx.await {
+        Ok(rx) => rx,
+        Err(_) => {
+            println!("Failed to subscribe to train updates");
+            socket
+                .send(axum::extract::ws::Message::Close(Option::None))
+                .await
+                .unwrap();
+            return;
+        }
+    };
     loop {
         tokio::select! {
             biased;
@@ -99,7 +122,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                     // }
                     // Ok(axum::extract::ws::Message::Text(text)) => text,
                     Ok(_) => {
-                        println!("Received unexpected non-text packet from client...");
+                        println!("Received unexpected packet from client...");
                         break;
                     }
                 };
@@ -136,7 +159,16 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
             }
 
             update = update_receiver.recv() => {
-                socket.send(update.unwrap().into()).await.unwrap();
+                match update {
+                    Some(update) => {
+                        socket.send(update.into()).await.unwrap();
+                    }
+                    None => {
+                        println!("Failed to subscribe to train updates");
+                        break;
+                    }
+                }
+                
             }
         };
     }
@@ -155,13 +187,204 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
 }
 
 async fn train_master(
-    view_request_rx: tokio::sync::mpsc::Receiver<(
+    mut view_request_rx: tokio::sync::mpsc::Receiver<(
         TrainView,
         tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<ServerPacket>>,
     )>,
 ) {
-    let train_pos = 0f64;
-    
+    enum PositionObject {
+        ViewLeftBound(u32),
+        ViewRightBound(u32),
+        TrackLeftEnd,
+        TrackRightEnd,
+    }
+
+    println!("Server Started");
+
+    let mut train_pos: OrderedFloat<f64> = 0f64.into();
+    let mut going_right = true;
+    let train_speed = 500f64; // 500 pixel per second
+    let left_bound: OrderedFloat<f64> = 0f64.into();
+    let right_bound: OrderedFloat<f64> = 4000f64.into();
+
+    let mut train_pos_set = btreemultimap::BTreeMultiMap::new();
+    let mut train_channels: std::collections::BTreeMap<
+        u32,
+        (tokio::sync::mpsc::Sender<ServerPacket>, OrderedFloat<f64>),
+    > = std::collections::BTreeMap::new();
+
+    train_pos_set.insert(left_bound, PositionObject::TrackLeftEnd);
+    train_pos_set.insert(right_bound, PositionObject::TrackRightEnd);
+
+    let mut next_viewer_id = 0;
+
+    loop {
+        println!("train_pos: {train_pos}, going: {going_right}");
+        let wait_start = tokio::time::Instant::now();
+
+        // calculate when will the train reach something
+        let next_stop = *if going_right {
+            let mut range = train_pos_set.range((
+                std::ops::Bound::Excluded(&train_pos),
+                std::ops::Bound::Included(&right_bound),
+            ));
+            range.next().unwrap() // We should always have at least one next thing in our range: the boundary object
+        } else {
+            let mut range = train_pos_set.range((
+                std::ops::Bound::Included(&left_bound),
+                std::ops::Bound::Excluded(&train_pos),
+            ));
+            range.next_back().unwrap()
+        }
+        .0;
+        let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(
+            (*next_stop - *train_pos).abs() / train_speed,
+        ));
+        tokio::select! {
+            biased;
+
+            _ = wait_time => {
+                let mut reached_end = false;
+                for object in train_pos_set.get_vec(&next_stop).unwrap() { // We're guranteed to have at least one object at the stop
+                        match object {
+                            PositionObject::ViewLeftBound(id) => {
+                                if going_right {
+                                    // entering a left bound
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.@
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+
+                                    let passing_time = length / train_speed;
+
+                                    // if tx failed sending, we delete the Channel
+                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
+                                }
+                            }
+                            PositionObject::ViewRightBound(id) => {
+                                if !going_right {
+                                    // entering a right bound
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+
+                                    let passing_time = length / train_speed;
+                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
+                                }
+                        }
+                        PositionObject::TrackLeftEnd => {
+                            reached_end = true;
+                        }
+                        PositionObject::TrackRightEnd => {
+                            reached_end = true;
+                        }
+                    }
+                }
+                train_pos = next_stop;
+                if reached_end {
+                    going_right = !going_right;
+                    // handle boundary cases
+                    for object in train_pos_set.get_vec(&train_pos).unwrap() {
+                        match object {
+                            PositionObject::ViewLeftBound(id) => {
+                                if going_right {
+                                    // entering a left bound
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+                                    
+                                    let passing_time = length / train_speed;
+                                    match tx.send(ServerPacket::PacketRIGHT(*passing_time, 0f64, "train_right.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
+                                }
+                            }
+                            PositionObject::ViewRightBound(id) => {
+                                if !going_right {
+                                    // entering a right bound
+                                    let (tx, length) = match train_channels.get(id) {
+                                        Some(stuff) => stuff,
+                                        None => {
+                                            // Channel is already dead, we should also delete this entry.
+                                            // TODO
+                                            continue;
+                                        }
+                                    };
+
+                                    let passing_time = length / train_speed;
+                                    match tx.send(ServerPacket::PacketLEFT(*passing_time, 0f64, "train_left.png".into())).await {
+                                        Ok(_) => {},
+                                        Err(_) => {
+                                            train_channels.remove(id);
+                                            println!("Removed failed client handler from channel list");
+                                        },
+                                    }
+                                }
+                        }
+                        _ => {}
+                        }
+                    }
+                }
+            }
+
+            request_result = view_request_rx.recv() => {
+                // received new view request
+                let (new_view, response_tx) = request_result.unwrap();
+                let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(4);
+
+                assert!(new_view.left<new_view.right);
+                if new_view.left < left_bound || right_bound < new_view.right {
+                    // invalid boundary for current track
+                    continue;
+                }
+
+                response_tx.send(notify_rx).unwrap();
+
+                let new_viewer_id = next_viewer_id;
+                next_viewer_id += 1;
+                train_channels.insert(new_viewer_id, (notify_tx, new_view.right-new_view.left));
+
+                train_pos_set.insert(new_view.left, PositionObject::ViewLeftBound(new_viewer_id));
+                train_pos_set.insert(new_view.right, PositionObject::ViewRightBound(new_viewer_id));
+
+                if going_right {
+                    train_pos = train_pos + (tokio::time::Instant::now() - wait_start).as_secs_f64() * train_speed;
+                } else {
+                    train_pos = train_pos - (tokio::time::Instant::now() - wait_start).as_secs_f64() * train_speed;
+                }
+            }
+        }
+    }
 }
 
 #[tokio::main]
@@ -175,9 +398,7 @@ async fn main() {
 
     // build our application with a single route
 
-    let shared_state = AppState {
-        view_request_tx,
-    };
+    let shared_state = AppState { view_request_tx };
 
     let assets_dir = std::path::PathBuf::from("../frontend/");
 
@@ -186,8 +407,10 @@ async fn main() {
             tower_http::services::ServeDir::new(assets_dir).append_index_html_on_directories(true),
         ))
         .route("/ws", get(ws_get_handler))
+        .route("/force-derail", get(derail_handler))
         .with_state(shared_state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
+    let listener = tokio::net::TcpListener::bind(location).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
