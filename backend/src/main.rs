@@ -258,7 +258,7 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for channel in &mut viewer_channels {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
                     }
@@ -267,7 +267,7 @@ async fn train_master(
             clicked = click_rx.recv() => {
                 let clicked = clicked.unwrap();
                 println!("Train#{} is clicked", clicked);
-                
+
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
                     train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
@@ -279,7 +279,7 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for channel in &mut viewer_channels {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
                     }
@@ -295,7 +295,7 @@ async fn train_master(
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
                     |a| (a.1, a.0.path, a.0.color.clone(), a.0.thickness)
                 ).collect())).await.unwrap();
-                                
+
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
                     train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
@@ -307,11 +307,11 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for channel in &mut viewer_channels {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
                     }
-                    notify_tx.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                    notify_tx.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                     / train.properties.speed), train.properties.image.clone())).await;
                 }
                 viewer_channels.push(notify_tx);
