@@ -134,8 +134,9 @@ function redraw(time) {
         // console.log(tracklist);
         // console.log(train);
 
-        if (train.movement_start == -1)
-            train.movement_start = time;
+        if (train.movement_start == -1) {
+            train.movement_start = time - Number(train.start_t) * Number(train.duration);
+        }
 
         let cordlist = tracklist.get(train.track_id).cordlist;
         let current_t = (time - train.movement_start) / train.duration;
