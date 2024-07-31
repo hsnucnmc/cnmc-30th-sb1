@@ -57,6 +57,10 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                         break;
                     }
                     Ok(ws::Message::Text(packet)) => packet,
+                    Ok(ws::Message::Close(_)) => {
+                        println!("A websocket connection sent a close packet...");
+                        break;
+                    }
                     Ok(_) => {
                         println!("A websocket connection sent a packet with an unexpected type...");
                         break;
@@ -167,6 +171,9 @@ async fn train_master(
         },
     ];
 
+    let valid_train_id = (0..trains.len() as u32).collect();
+    valid_id_tx.send(valid_train_id).unwrap();
+
     let tracks = vec![
         (
             TrackPiece {
@@ -189,7 +196,7 @@ async fn train_master(
     ];
 
     let mut viewer_channels = Vec::new();
-    let (click_tx, click_rx) = tokio::sync::mpsc::channel(32);
+    let (click_tx, mut click_rx) = tokio::sync::mpsc::channel(32);
 
     loop {
         let wait_start = tokio::time::Instant::now();
@@ -318,6 +325,10 @@ async fn train_master(
             //         }
             //     }
             // }
+            clicked = click_rx.recv() => {
+                let clicked = clicked.unwrap();
+                println!("Train#{} is clicked", clicked);
+            }
 
             request_result = view_request_rx.recv() => {
                 // received new view request
