@@ -1,7 +1,7 @@
 let img = -1;
 let image_name = "train_right.png";
-const train_width = 350/4; // TODO: adjust with image size
-const train_height = 263/4;
+const train_width = 350 / 4; // TODO: adjust with image size
+const train_height = 263 / 4;
 
 const main_canvas = document.getElementById("main-canvas");
 
@@ -34,8 +34,19 @@ function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degr
 
 function bezierDerivative(coords, t) {
     const n = (coords.length / 2) - 2; // Number of control points
-    
-    if (n === 1) {
+
+    if (n === 0) {
+        // Straight Line
+        const [x0, y0, x1, y1] = coords;
+
+        const invT = 1 - t;
+
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+
+        return { dx: dx, dy: dy };
+    }
+    else if (n === 1) {
         // Quadratic Bezier curve
         const [x0, y0, x1, y1, x2, y2] = coords;
 
@@ -58,7 +69,7 @@ function bezierDerivative(coords, t) {
 
         return { dx: dx, dy: dy };
     } else {
-        throw new Error("Unsupported number of control points. Supported types are quadratic (3 points) and cubic (4 points).");
+        throw new Error("Unsupported number of control points.\nSupported types are straight lines, quadratic (3 points) and cubic (4 points) beziers.");
     }
 }
 
@@ -150,7 +161,7 @@ function redraw(time) {
         // now detrive
         let dresult = bezierDerivative(cordlist, current_t);
         let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
-        drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width/2, y_pos - train_height, train.img);
+        drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
 
     window.requestAnimationFrame(redraw);
