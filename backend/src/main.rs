@@ -182,7 +182,7 @@ async fn train_master(
                 thickness: 5f64,
                 length: 500f64,
             },
-            1,
+            0,
         ),
         (
             TrackPiece {
@@ -339,7 +339,8 @@ async fn train_master(
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
                     |a| (a.1, a.0.path, a.0.color.clone(), a.0.thickness)
                 ).collect())).await.unwrap();
-                notify_tx.send(ServerPacket::PacketTRAIN(0, 0, 0f64, tokio::time::Duration::from_millis(10000), "train_right.png".into())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(0, 0, 0f64, tokio::time::Duration::from_millis(10000), "train_right_debug.png".into())).await.unwrap();
+                notify_tx.send(ServerPacket::PacketTRAIN(1, 1, 0f64, tokio::time::Duration::from_millis(20000), "train_right_debug.png".into())).await.unwrap();
                 viewer_channels.push(notify_tx);
             }
         }
