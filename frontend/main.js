@@ -19,7 +19,7 @@ let run_time = 1000.0; //?ms
 
 let left_bound = Number(document.cookie.split("; ").find(row => row.startsWith("left_bound="))?.split("=")[1]);
 let ask_attempt = 0;
-tracklist=new Map();
+tracklist = new Map();
 
 while (Number.isNaN(left_bound) || left_bound < 0 || 4000 < left_bound) {
     left_bound = Number(window.prompt("Left bound?", "0"));
@@ -111,10 +111,10 @@ function drawtrack(id, cordlist, color, thickness) {
         main_context.bezierCurveTo(cordlist[2], cordlist[3], cordlist[4], cordlist[5], cordlist[6], cordlist[7]);
     }
     main_context.stroke();
-    tracklist.set(id,cordlist);
+    tracklist.set(id, cordlist);
     // TODO untest but should be good
 }
-function redraw(trainlist, st,duration) {
+function redraw(trainlist, st, duration) {
     /**
     * @param trainlist a list of param including (trainid, trackid)
     * @param st starting time
@@ -144,30 +144,30 @@ function redraw(trainlist, st,duration) {
     //     status = "nothing";
     //     movement_start = time;
     // }
-    for(i = 0;i<trainlist.length;i++){
-        trainid=trainlist[i].trainid;
+    for (i = 0; i < trainlist.length; i++) {
+        trainid = trainlist[i].trainid;
         trackid = trainlist[i].trackid;
-        cordlist=tracklist.get(trackid);
-        realt=(time-movement_start)/duration;
-        if(cordlist.length==4){
+        cordlist = tracklist.get(trackid);
+        realt = (time - movement_start) / duration;
+        if (cordlist.length == 4) {
             // 2point curve
-            var x_pos  = (1-realt)*cordlist[0]+realt*cordlist[2];
-            var y_pos  = (1-realt)*cordlist[1]+realt*cordlist[3];
-        }else if(cordlist.length==6){
+            var x_pos = (1 - realt) * cordlist[0] + realt * cordlist[2];
+            var y_pos = (1 - realt) * cordlist[1] + realt * cordlist[3];
+        } else if (cordlist.length == 6) {
             // one cp
-            var x_pos  = (1-realt)*(1-realt)*cordlist[0]+2*(1-realt)*realt*cordlist[2]+realt*realt*cordlist[4];
-            var y_pos  = (1-realt)*(1-realt)*cordlist[1]+2*(1-realt)*realt*cordlist[3]+realt*realt*cordlist[5];
-        }else if(cordlist.length==8){
+            var x_pos = (1 - realt) * (1 - realt) * cordlist[0] + 2 * (1 - realt) * realt * cordlist[2] + realt * realt * cordlist[4];
+            var y_pos = (1 - realt) * (1 - realt) * cordlist[1] + 2 * (1 - realt) * realt * cordlist[3] + realt * realt * cordlist[5];
+        } else if (cordlist.length == 8) {
             // standard 2 cp
-            var x_pos  = (1-realt)*(1-realt)*(1-realt)*cordlist[0]+3*(1-realt)*(1-realt)*realt*cordlist[2]+3*(1-realt)*realt*realt*cordlist[4]+realt*realt*realt*cordlist[6];
-            var y_pos  = (1-realt)*(1-realt)*(1-realt)*cordlist[1]+3*(1-realt)*(1-realt)*realt*cordlist[3]+3*(1-realt)*realt*realt*cordlist[5]+realt*realt*realt*cordlist[7];
+            var x_pos = (1 - realt) * (1 - realt) * (1 - realt) * cordlist[0] + 3 * (1 - realt) * (1 - realt) * realt * cordlist[2] + 3 * (1 - realt) * realt * realt * cordlist[4] + realt * realt * realt * cordlist[6];
+            var y_pos = (1 - realt) * (1 - realt) * (1 - realt) * cordlist[1] + 3 * (1 - realt) * (1 - realt) * realt * cordlist[3] + 3 * (1 - realt) * realt * realt * cordlist[5] + realt * realt * realt * cordlist[7];
         }
         //! not handling out of bound problem
         // now detrive
-        dresult=bezierDerivative(cordlist,realt);
-        slope=dresult.dy/dresult.dx;
-        deg=Math.atanh(slope); //! not sure if atanh can work
-        drawRotatedImg(main_context,x_pos,y_pos,deg,x_pos,y_pos,img);
+        dresult = bezierDerivative(cordlist, realt);
+        slope = dresult.dy / dresult.dx;
+        deg = Math.atanh(slope); //! not sure if atanh can work
+        drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos, y_pos, img);
     }
 
     window.requestAnimationFrame(redraw);
@@ -224,6 +224,6 @@ window.addEventListener("click", function (event) {
     //TODO finish this
     //if mousePos is on anyone of the trains
     // mousePosText.textContent = `(${mousePos.x}, ${mousePos.y})`;
-//     click return which train have been clicked and its id one number
-// NOT IMPLMENT YET
+    //     click return which train have been clicked and its id one number
+    // NOT IMPLMENT YET
 });
