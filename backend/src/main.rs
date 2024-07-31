@@ -23,7 +23,7 @@ async fn ws_get_handler(
 async fn derail_handler(
     State(state): State<AppState>,
 ) {
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    let (tx, _) = tokio::sync::oneshot::channel();
     state.view_request_tx.send((TrainView { left: 0.into(), right: 0.into()}, tx)).await.unwrap();
 }
 

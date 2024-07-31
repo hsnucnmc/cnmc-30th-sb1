@@ -30,10 +30,17 @@
         let movement_start = 0;
         let run_time = 1000.0; //ms
 
-        let left_bound = Number(window.prompt("Left bound?", "0"));
-        let right_bound = Number(window.prompt("Right bound?", "4000"));
+        let left_bound = Number(document.cookie.split("; ").find(row => row.startsWith("left_bound="))?.split("=")[1]);
+        while (Number.isNaN(left_bound)) {
+            left_bound = Number(window.prompt("Left bound?", "0"));
+        }
+        document.cookie = "left_bound=" + left_bound;
 
-
+        let right_bound = Number(document.cookie.split("; ").find(row => row.startsWith("right_bound="))?.split("=")[1]);
+        while (Number.isNaN(right_bound)) {
+            right_bound = Number(window.prompt("Right bound?", "4000"));
+        }
+        document.cookie = "right_bound=" + right_bound;
 
         let derail_img = new Image();
         derail_img.src = "derail.png";
