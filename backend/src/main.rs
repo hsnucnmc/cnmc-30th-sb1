@@ -124,43 +124,78 @@ async fn train_master(
             tokio::sync::mpsc::Sender<TrainID>,
         )>,
     >,
-    mut valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>
+    mut valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>,
 ) {
     struct TrackPiece {
-        path: Bezier, // px
-        color: Color, // #FFFFFF
+        path: Bezier,         // px
+        color: Color,         // #FFFFFF
         thickness: Thickness, // px
-        length: f64, // px
+        length: f64,          // px
     }
 
-    enum PositionObject {
-        ViewLeftBound(u32),
-        ViewRightBound(u32),
-        TrackLeftEnd,
-        TrackRightEnd,
+    struct TrainProperties {
+        speed: f64, // px/s
+        image: String,
+        // image_left: String,
+        // image_right: String,
+    }
+
+    struct TrainInstance {
+        properties: TrainProperties,
+        current_track: u32,
+        progress: f64, // 0 ~ 1
     }
 
     println!("Server Started");
 
-    let mut train_pos: OrderedFloat<f64> = 0f64.into();
-    let mut going_right = true;
-    let train_speed = 500f64; // 500 pixel per second
-    let left_bound: OrderedFloat<f64> = 0f64.into();
-    let right_bound: OrderedFloat<f64> = 4000f64.into();
+    let trains = vec![
+        TrainInstance {
+            properties: TrainProperties {
+                speed: 500f64,
+                image: "train_right.png".into(),
+            },
+            current_track: 0,
+            progress: 0.0,
+        },
+        TrainInstance {
+            properties: TrainProperties {
+                speed: 250f64,
+                image: "train_2_right.png".into(),
+            },
+            current_track: 1,
+            progress: 0.0,
+        },
+    ];
 
-    let mut train_pos_set = btreemultimap::BTreeMultiMap::new();
+    let tracks = vec![
+        (
+            TrackPiece {
+                path: Bezier::Bezier3(Coord(100f64, 500f64), Coord(100f64, 100f64), Coord(500f64, 100f64)),
+                color: "#66CCFF".into(),
+                thickness: 1f64,
+                length: 500f64,
+            },
+            1,
+        ),
+        (
+            TrackPiece {
+                path: Bezier::Bezier3(Coord(500f64, 100f64), Coord(500f64, 500f64), Coord(100f64, 500f64)),
+                color: "#66FFCC".into(),
+                thickness: 1f64,
+                length: 500f64,
+            },
+            1,
+        ),
+    ];
+
     let mut train_channels: std::collections::BTreeMap<
         u32,
         (tokio::sync::mpsc::Sender<ServerPacket>, OrderedFloat<f64>),
     > = std::collections::BTreeMap::new();
 
-    train_pos_set.insert(left_bound, PositionObject::TrackLeftEnd);
-    train_pos_set.insert(right_bound, PositionObject::TrackRightEnd);
-
     let mut next_viewer_id = 0;
 
     loop {
-        println!("train_pos: {train_pos}, going: {going_right}");
         let wait_start = tokio::time::Instant::now();
 
         // calculate when will the train reach something
