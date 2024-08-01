@@ -334,5 +334,5 @@ window.addEventListener("click", function (event) {
         if(clickr<=r){
             socket.send("click\n" + pos.id);
         }
-    })
+    });
 });
