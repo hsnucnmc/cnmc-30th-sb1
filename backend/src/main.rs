@@ -1,17 +1,16 @@
 use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
+use tokio::sync::{mpsc, oneshot, watch};
+
 use train_backend::packet::*;
 
 #[derive(Clone)]
 struct AppState {
-    view_request_tx: tokio::sync::mpsc::Sender<
-        tokio::sync::oneshot::Sender<(
-            tokio::sync::mpsc::Receiver<ServerPacket>,
-            tokio::sync::mpsc::Sender<TrainID>,
-        )>,
-    >,
-    valid_id: tokio::sync::watch::Receiver<std::collections::BTreeSet<TrainID>>,
+    view_request_tx:
+        mpsc::Sender<oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>>,
+    valid_id: watch::Receiver<std::collections::BTreeSet<TrainID>>,
+    derail_tx: mpsc::Sender<()>,
 }
 
 async fn ws_get_handler(
@@ -21,24 +20,32 @@ async fn ws_get_handler(
     ws.on_upgrade(|socket| ws_client_handler(socket, state))
 }
 
+async fn derail_handler(State(state): State<AppState>) {
+    let _ = state.derail_tx.send(()).await;
+}
+
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     println!("New websocket connection has established...");
 
-    let (subscribe_request_tx, substribe_request_rx) = tokio::sync::oneshot::channel();
-    state
-        .view_request_tx
-        .send(subscribe_request_tx)
-        .await
-        .unwrap();
+    let (subscribe_request_tx, substribe_request_rx) = oneshot::channel();
+    match state.view_request_tx.send(subscribe_request_tx).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed to send update subscription, is train master dead?");
+            let _ = socket
+                .send(axum::extract::ws::Message::Close(Option::None))
+                .await;
+            return;
+        }
+    };
 
     let (mut update_receiver, click_sender) = match substribe_request_rx.await {
         Ok(rx) => rx,
         Err(_) => {
             println!("Failed to subscribe to train updates");
-            socket
+            let _ = socket
                 .send(axum::extract::ws::Message::Close(Option::None))
-                .await
-                .unwrap();
+                .await;
             return;
         }
     };
@@ -120,13 +127,11 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
 }
 
 async fn train_master(
-    mut view_request_rx: tokio::sync::mpsc::Receiver<
-        tokio::sync::oneshot::Sender<(
-            tokio::sync::mpsc::Receiver<ServerPacket>,
-            tokio::sync::mpsc::Sender<TrainID>,
-        )>,
+    mut view_request_rx: mpsc::Receiver<
+        oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>,
     >,
-    valid_id_tx: tokio::sync::watch::Sender<std::collections::BTreeSet<TrainID>>,
+    valid_id_tx: watch::Sender<std::collections::BTreeSet<TrainID>>,
+    mut derail_rx: mpsc::Receiver<()>,
 ) {
     struct TrackPiece {
         path: Bezier,         // px
@@ -224,8 +229,8 @@ async fn train_master(
         ),
     ];
 
-    let mut viewer_channels: Vec<tokio::sync::mpsc::Sender<ServerPacket>> = Vec::new();
-    let (click_tx, mut click_rx) = tokio::sync::mpsc::channel(32);
+    let mut viewer_channels: Vec<mpsc::Sender<ServerPacket>> = Vec::new();
+    let (click_tx, mut click_rx) = mpsc::channel(32);
 
     loop {
         let wait_start = tokio::time::Instant::now();
@@ -289,7 +294,7 @@ async fn train_master(
             request_result = view_request_rx.recv() => {
                 // received new view request
                 let response_tx = request_result.unwrap();
-                let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(4);
+                let (notify_tx, notify_rx) = mpsc::channel(4);
 
                 response_tx.send((notify_rx, click_tx.clone())).unwrap();
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
@@ -316,23 +321,31 @@ async fn train_master(
                 }
                 viewer_channels.push(notify_tx);
             }
+
+            _ = derail_rx.recv() => {
+                println!("RECEIVED DERAIL REQUEST!!!");
+                break;
+            }
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let (view_request_tx, view_request_rx) = tokio::sync::mpsc::channel(32);
+    let (view_request_tx, view_request_rx) = mpsc::channel(32);
 
-    let (valid_id_tx, valid_id_rx) = tokio::sync::watch::channel(std::collections::BTreeSet::new());
+    let (valid_id_tx, valid_id_rx) = watch::channel(std::collections::BTreeSet::new());
 
-    tokio::spawn(async move { train_master(view_request_rx, valid_id_tx).await });
+    let (derail_tx, derail_rx) = mpsc::channel(1);
+
+    tokio::spawn(async move { train_master(view_request_rx, valid_id_tx, derail_rx).await });
 
     // build our application with a single route
 
     let shared_state = AppState {
         view_request_tx,
         valid_id: valid_id_rx,
+        derail_tx,
     };
 
     let assets_dir = std::path::PathBuf::from("../frontend/");
@@ -341,8 +354,14 @@ async fn main() {
         .fallback_service(axum::routing::get_service(
             tower_http::services::ServeDir::new(assets_dir).append_index_html_on_directories(true),
         ))
+        .route(
+            "/derailer",
+            axum::routing::get_service(tower_http::services::ServeFile::new(
+                "../frontend/derailer.html",
+            )),
+        )
         .route("/ws", get(ws_get_handler))
-        // .route("/force-derail", get(derail_handler))
+        .route("/force-derail", get(derail_handler))
         .with_state(shared_state);
 
     let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
