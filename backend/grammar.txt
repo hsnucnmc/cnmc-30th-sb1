@@ -20,7 +20,7 @@
 <track_update>	::= "track\n" <track_count> ( "\n" <track_id> " " <bezier> " " <color> " " <thickness>)+ # redraw and update train track list
 <train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> "\n" <image_src> # start drawing train on certain track with certain image, lasting duration secord in total
 <click>			::= "click\n" <train_id> # train got clicked on client side
-<newnode>       ::= "newnode\n" <coord>
+<newnode>       ::= "newnode\n" <junction_id> " " <track_id> "\n" <coord> " " <coord>
 <newtrain>      ::= "newtrain\n" <coord> " " <track_id>
 <junction_id>   ::= <f64>
 <side>          ::= <bool>
