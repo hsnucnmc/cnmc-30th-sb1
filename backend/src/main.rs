@@ -138,27 +138,72 @@ async fn train_master(
 
     struct TrainProperties {
         speed: f64, // px/s
-        image: String,
-        // image_left: String,
-        // image_right: String,
+        image_forward: String,
+        image_backward: String,
     }
 
     struct TrainInstance {
         properties: TrainProperties,
         current_track: u32,
-        progress: f64, // 0 ~ 1
+        progress: f64,        // 0 ~ 1
+        direction: Direction, // backward direction: progress goes from 1 to 0
     }
 
     impl TrainInstance {
+        fn estimated_time_left(&self, tracks: &BTreeMap<u32, TrackPiece>) -> Duration {
+            Duration::from_secs_f64(
+                match self.direction {
+                    Direction::Forward => 1f64 - self.progress,
+                    Direction::Backward => self.progress,
+                } * tracks.get(&self.current_track).unwrap().length
+                    / self.properties.speed,
+            )
+        }
+
+        // update train after a ceratin duration of movement, return true when train has switched to another track
+        fn move_with_time(
+            &mut self,
+            duration: Duration,
+            tracks: &BTreeMap<u32, TrackPiece>,
+        ) -> bool {
+            let train = self;
+            let mut flag = false;
+            let mut move_distance = duration.as_secs_f64() * train.properties.speed;
+
+            loop {
+                let required_distance =
+                    (1f64 - train.progress) * tracks.get(&train.current_track).unwrap().length;
+
+                if required_distance <= move_distance {
+                    move_distance -= required_distance;
+                    train.current_track += 1;
+                    if train.current_track >= tracks.len() as u32 {
+                        train.current_track = 0;
+                    }
+                    train.progress = 0f64;
+                    flag = true;
+                } else {
+                    train.progress +=
+                        move_distance / tracks.get(&train.current_track).unwrap().length;
+                    break;
+                }
+            }
+            return flag;
+        }
+
         fn to_packet(&self, id: u32, tracks: &BTreeMap<u32, TrackPiece>) -> ServerPacket {
             ServerPacket::PacketTRAIN(
                 id,
                 self.current_track,
                 self.progress,
-                tokio::time::Duration::from_secs_f64(
+                Duration::from_secs_f64(
                     tracks.get(&self.current_track).unwrap().length / self.properties.speed,
                 ),
-                self.properties.image.clone(),
+                self.direction,
+                match self.direction {
+                    Direction::Forward => self.properties.image_forward.clone(),
+                    Direction::Backward => self.properties.image_backward.clone(),
+                },
             )
         }
     }
@@ -169,18 +214,22 @@ async fn train_master(
         TrainInstance {
             properties: TrainProperties {
                 speed: 500f64,
-                image: "train_right_debug.png".into(),
+                image_forward: "train_right_debug.png".into(),
+                image_backward: "train_left_debug.png".into(),
             },
             current_track: 0,
             progress: 0.0,
+            direction: Direction::Forward,
         },
         TrainInstance {
             properties: TrainProperties {
                 speed: 250f64,
-                image: "train_right_debug.png".into(),
+                image_forward: "train_right_debug.png".into(),
+                image_backward: "train_left_debug.png".into(),
             },
             current_track: 0,
             progress: 0.0,
+            direction: Direction::Forward,
         },
     ];
 
@@ -211,8 +260,8 @@ async fn train_master(
                 ),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
-                length: 500f64,            
-            },    
+                length: 500f64,
+            },
             // 3
             TrackPiece {
                 path: Bezier::Bezier4(
@@ -227,10 +276,7 @@ async fn train_master(
             },
             // 4
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(1800f64, 350f64),
-                    Coord(1300f64, 400f64),                    
-                ),
+                path: Bezier::Bezier2(Coord(1800f64, 350f64), Coord(1300f64, 400f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
@@ -282,20 +328,14 @@ async fn train_master(
             },
             // 9
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(-1175f64, 550f64),
-                    Coord(-1500f64, 400f64),
-                ),
+                path: Bezier::Bezier2(Coord(-1175f64, 550f64), Coord(-1500f64, 400f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
             },
             // 10
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(-1500f64, 400f64),
-                    Coord(-2150f64, 450f64),
-                ),
+                path: Bezier::Bezier2(Coord(-1500f64, 400f64), Coord(-2150f64, 450f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
@@ -313,10 +353,7 @@ async fn train_master(
             },
             // 12
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(-2800f64, 100f64),
-                    Coord(-2100f64, 100f64),
-                ),
+                path: Bezier::Bezier2(Coord(-2800f64, 100f64), Coord(-2100f64, 100f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
@@ -395,10 +432,7 @@ async fn train_master(
             },
             // 19
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(400f64, 200f64),
-                    Coord(750f64, 200f64),
-                ),
+                path: Bezier::Bezier2(Coord(400f64, 200f64), Coord(750f64, 200f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
@@ -428,10 +462,7 @@ async fn train_master(
             },
             // 22
             TrackPiece {
-                path: Bezier::Bezier2(
-                    Coord(1300f64, 300f64),
-                    Coord(1700f64, 200f64),
-                ),
+                path: Bezier::Bezier2(Coord(1300f64, 300f64), Coord(1700f64, 200f64)),
                 color: "#66FFCC".into(),
                 thickness: 20f64,
                 length: 500f64,
@@ -447,9 +478,6 @@ async fn train_master(
                 thickness: 20f64,
                 length: 500f64,
             },
-
-                        
-
         ];
         let mut tracks = BTreeMap::new();
         for (i, track) in tracks_vec.into_iter().enumerate() {
@@ -468,30 +496,18 @@ async fn train_master(
         // calculate when will the next train reach the end of it's current track
         let wait_time = trains
             .iter()
-            .map(|train| {
-                ordered_float::OrderedFloat(
-                    tracks.get(&train.current_track).unwrap().length * (1f64 - train.progress)
-                        / train.properties.speed,
-                )
-            })
+            .map(|train| train.estimated_time_left(&tracks))
             .min()
             .unwrap();
 
-        let wait_time = tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait_time.0));
+        let wait = tokio::time::sleep(wait_time);
         tokio::select! {
             biased;
 
-            _ = wait_time => {
+            _ = wait => {
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
-                    if train.progress >= 1f64 {
-                        train.current_track += 1;
-                        if train.current_track >= tracks.len() as u32 {
-                            train.current_track = 0;
-                        }
-                        train.progress = 0f64; // TODO: actually calculate progress
-
+                    if train.move_with_time(wait_end - wait_start, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
@@ -504,14 +520,14 @@ async fn train_master(
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
-                    if train.progress >= 1f64 {
-                        train.current_track += 1;
-                        if train.current_track >= tracks.len() as u32 {
-                            train.current_track = 0;
+                    if i == clicked as usize {
+                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(2), &tracks) {
+                            for (_, channel) in viewer_channels.iter() {
+                                channel.send(train.to_packet(i as u32, &tracks)).await;
+                            }
                         }
-                        train.progress = 0f64; // TODO: actually calculate progress
-
+                    } else
+                    if train.move_with_time(wait_end - wait_start, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
@@ -531,14 +547,7 @@ async fn train_master(
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
-                    if train.progress >= 1f64 {
-                        train.current_track += 1;
-                        if train.current_track >= tracks.len() as u32 {
-                            train.current_track = 0;
-                        }
-                        train.progress = 0f64; // TODO: actually calculate progress
-
+                    if train.move_with_time(wait_end - wait_start, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
