@@ -178,20 +178,39 @@ async fn train_master(
             let mut move_distance = duration.as_secs_f64() * train.properties.speed;
 
             loop {
-                let required_distance =
-                    (1f64 - train.progress) * tracks.get(&train.current_track).unwrap().length;
+                let required_distance = match train.direction {
+                    Direction::Forward => 1f64 - train.progress,
+                    Direction::Backward => train.progress,
+                } * tracks.get(&train.current_track).unwrap().length;
 
                 if required_distance <= move_distance {
                     move_distance -= required_distance;
-                    train.current_track += 1;
-                    if train.current_track >= tracks.len() as u32 {
-                        train.current_track = 0;
+                    match train.direction {
+                        Direction::Forward => {
+                            train.current_track += 1;
+                            if train.current_track >= tracks.len() as u32 {
+                                train.current_track = 0;
+                            }
+                        }
+                        Direction::Backward => {
+                            if train.current_track == 0  {
+                                train.current_track = tracks.len() as u32;
+                            }
+                            train.current_track -= 1;
+                        },
                     }
-                    train.progress = 0f64;
+
+                    train.progress = match train.direction {
+                        Direction::Forward => 0f64,
+                        Direction::Backward => 1f64,
+                    };
                     flag = true;
                 } else {
                     train.progress +=
-                        move_distance / tracks.get(&train.current_track).unwrap().length;
+                        move_distance / tracks.get(&train.current_track).unwrap().length * match train.direction {
+                            Direction::Forward => 1f64,
+                            Direction::Backward => -1f64,
+                        };
                     break;
                 }
             }
@@ -236,7 +255,7 @@ async fn train_master(
             },
             current_track: 0,
             progress: 0.0,
-            direction: Direction::Forward,
+            direction: Direction::Backward,
         },
     ];
 

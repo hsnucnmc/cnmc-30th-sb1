@@ -46,7 +46,6 @@ let derail_img = new Image();
 derail_img.src = "derail.png";
 
 let status = "nothing";
-let movement_start = 0;
 let run_time = 1000.0; //?ms
 
 let trainlist = new Map();
@@ -239,10 +238,6 @@ function redraw(time) {
     main_context.save();
     main_context.translate(-relative_x, -relative_y);
 
-    if (movement_start == -1) {
-        movement_start = time;
-    }
-
     if (img == -1) {//? default image
         if (!image_name) image_name = "train_right.png";
         img = new Image(); // Create new img element
@@ -256,12 +251,19 @@ function redraw(time) {
     trainposition = [];
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
-            train.movement_start = time - Number(train.start_t) * Number(train.duration);
+            if (train.direction == 1) {
+                train.movement_start = time - Number(train.start_t) * Number(train.duration);
+            } else {
+                train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
+            }
         }
 
         let cordlist = tracklist.get(train.track_id).cordlist;
         let current_t = (time - train.movement_start) / train.duration;
-        if (current_t > 1.1)
+        if (train.direction == -1) {
+            current_t = 1 - current_t;
+        }
+        if (current_t > 1.1 || current_t < -0.1)
             return;
         let point = bezierPoint(cordlist, current_t);
         let x_pos = point.x;
@@ -304,6 +306,11 @@ socket.onopen = (event) => {
                 new_train.track_id = Number(args[1]);
                 new_train.start_t = Number(args[2]);
                 new_train.duration = Number(args[3]);
+                if (args[4] == "forward") {
+                    new_train.direction = 1;
+                } else {
+                    new_train.direction = -1;
+                }
                 new_train.img = new Image();
                 new_train.img.src = msg_split[2];
                 new_train.movement_start = NaN;
