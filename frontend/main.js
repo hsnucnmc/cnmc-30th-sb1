@@ -8,6 +8,9 @@ let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("
 
 let ask_attempt = 0;
 
+let debugMode = false;
+let dragMode = true;
+
 while (Number.isNaN(relative_x) || relative_x < -4000 || 4000 < relative_x) {
     relative_x = Number(window.prompt("Relative x?", "0"));
     ask_attempt++;
@@ -215,7 +218,11 @@ function drawTrack(ctx, track) {
     let n = 30;
     for(let i = 0.5 / n / 2; i < 1; i+=1/n) {
         drawSingleTie(ctx, track, thickness * 2, i);
-    }    
+    }
+    if (debugMode) {
+        ctx.strokeStyle = "#000";
+        drawSingleTie(ctx, track, thickness * 2, 0);
+    }
 }
 
 function redraw(time) {
@@ -230,7 +237,7 @@ function redraw(time) {
 
     main_context.clearRect(0, 0, main_canvas.width, main_canvas.height);
     main_context.save();
-    main_context.translate(relative_x, relative_y);
+    main_context.translate(-relative_x, -relative_y);
 
     if (movement_start == -1) {
         movement_start = time;
@@ -326,7 +333,7 @@ socket.onopen = (event) => {
 
 // update click on demand
 window.addEventListener("click", function (event) {
-    mousePos = { x: event.clientX, y: event.clientY };
+    mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y};
     r=Math.sqrt(Math.pow(train_width/2,2)+Math.pow(train_height/2,2))
     // time complexity (o(n))
     trainposition.forEach(pos=>{
@@ -335,4 +342,14 @@ window.addEventListener("click", function (event) {
             socket.send("click\n" + pos.id);
         }
     });
+});
+
+// make window draggable
+window.addEventListener("mousemove", event => {
+    if(event.buttons === 1 && dragMode) {
+        relative_x -= event.movementX;
+        relative_y -= event.movementY;
+        document.cookie = "relative_x=" + relative_x;
+        document.cookie = "relative_y=" + relative_y;
+    }
 });
