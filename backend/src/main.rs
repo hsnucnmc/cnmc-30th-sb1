@@ -155,6 +155,20 @@ async fn train_master(
         progress: f64, // 0 ~ 1
     }
 
+    impl TrainInstance {
+        fn to_packet(&self, id: u32, tracks: &Vec<(TrackPiece, u32)>) -> ServerPacket {
+            ServerPacket::PacketTRAIN(
+                id,
+                self.current_track,
+                self.progress,
+                tokio::time::Duration::from_secs_f64(
+                    tracks[self.current_track as usize].0.length / self.properties.speed,
+                ),
+                self.properties.image.clone(),
+            )
+        }
+    }
+
     println!("Server Started");
 
     let mut trains = vec![
@@ -266,8 +280,7 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for (_, channel) in viewer_channels.iter() {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
-                            / train.properties.speed), train.properties.image.clone())).await;
+                            channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
                     }
                 }
@@ -287,8 +300,7 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for (_, channel) in viewer_channels.iter() {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
-                            / train.properties.speed), train.properties.image.clone())).await;
+                            channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
                     }
                 }
@@ -315,12 +327,10 @@ async fn train_master(
                         train.progress = 0f64; // TODO: actually calculate progress
 
                         for (_, channel) in viewer_channels.iter() {
-                            channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
-                            / train.properties.speed), train.properties.image.clone())).await;
+                            channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
                     }
-                    notify_tx.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
-                    / train.properties.speed), train.properties.image.clone())).await;
+                    notify_tx.send(train.to_packet(i as u32, &tracks)).await;
                 }
                 viewer_channels.insert(next_viewer_serial, notify_tx);
                 next_viewer_serial += 1;
