@@ -393,6 +393,61 @@ async fn train_master(
                 thickness: 20f64,
                 length: 500f64,
             },
+            // 19
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(400f64, 200f64),
+                    Coord(750f64, 200f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 20
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(750f64, 200f64),
+                    Coord(800f64, 300f64),
+                    Coord(900f64, 200f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 21
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(900f64, 200f64),
+                    Coord(1100f64, 100f64),
+                    Coord(1100f64, 300f64),
+                    Coord(1300f64, 300f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 22
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(1300f64, 300f64),
+                    Coord(1700f64, 200f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 23
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(1700f64, 200f64),
+                    Coord(1900f64, 250f64),
+                    Coord(2000f64, 100f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+
                         
 
         ];
