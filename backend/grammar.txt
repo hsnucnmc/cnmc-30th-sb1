@@ -3,6 +3,7 @@
 <hexdig>       	::= <digit> | ("A" | "B" | "C" | "D" | "E" | "F")
 <u32>           ::= <digit>+ # valid rust u32
 <f64>           ::= ("+" | "-")? <digit>+  ( "." <digit>+ )? # valid rust f64
+<bool>          ::= 0 | 1
 <image_src>     ::= ( <alpha> | <digit> | "_" )+ ( ".png" | ".jpg") # valid image resource link
 <track_id>		::= <u32>
 <train_id>		::= <u32>
@@ -19,5 +20,10 @@
 <track_update>	::= "track\n" <track_count> ( "\n" <track_id> " " <bezier> " " <color> " " <thickness>)+ # redraw and update train track list
 <train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> "\n" <image_src> # start drawing train on certain track with certain image, lasting duration secord in total
 <click>			::= "click\n" <train_id> # train got clicked on client side
+<newnode>       ::= "newnode\n" <coord>
+<newtrain>      ::= "newtrain\n" <coord> " " <track_id>
+<junction_id>   ::= <f64>
+<side>          ::= <bool>
+<movejunction>  ::= "movejunction\n" <junction_id> " " <side>
 <server_packet>	::= <track_update> | <train_update>
-<client_packet>	::= <click>
+<client_packet>	::= <click> | <newnode> | <newtrain> | <movejunction>
