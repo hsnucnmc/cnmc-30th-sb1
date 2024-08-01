@@ -3,6 +3,9 @@ let image_name = "train_right.png";
 const train_width = 350 / 4; // TODO: adjust with image size
 const train_height = 263 / 4;
 
+let relative_x = 0;
+let relative_y = 0;
+
 const main_canvas = document.getElementById("main-canvas");
 
 function resizeCanvas() {
@@ -104,6 +107,8 @@ function redraw(time) {
     let main_context = main_canvas.getContext("2d");
 
     main_context.clearRect(0, 0, main_canvas.width, main_canvas.height);
+    main_context.save();
+    main_context.translate(relative_x, relative_y);
 
     if (movement_start == -1) {
         movement_start = time;
@@ -162,6 +167,7 @@ function redraw(time) {
         drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
 
+    main_context.restore();
     window.requestAnimationFrame(redraw);
 }
 

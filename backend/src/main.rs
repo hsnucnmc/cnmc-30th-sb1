@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+
 use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
@@ -9,7 +11,7 @@ use train_backend::packet::*;
 struct AppState {
     view_request_tx:
         mpsc::Sender<oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>>,
-    valid_id: watch::Receiver<std::collections::BTreeSet<TrainID>>,
+    valid_id: watch::Receiver<BTreeSet<TrainID>>,
     derail_tx: mpsc::Sender<()>,
 }
 
@@ -33,7 +35,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         Err(_) => {
             println!("Failed to send update subscription, is train master dead?");
             let _ = socket
-                .send(axum::extract::ws::Message::Close(Option::None))
+                .send(ws::Message::Close(Option::None))
                 .await;
             return;
         }
@@ -44,7 +46,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         Err(_) => {
             println!("Failed to subscribe to train updates");
             let _ = socket
-                .send(axum::extract::ws::Message::Close(Option::None))
+                .send(ws::Message::Close(Option::None))
                 .await;
             return;
         }
@@ -121,7 +123,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     // }
 
     let _ = socket
-        .send(axum::extract::ws::Message::Close(Option::None))
+        .send(ws::Message::Close(Option::None))
         .await;
     return;
 }
@@ -130,7 +132,7 @@ async fn train_master(
     mut view_request_rx: mpsc::Receiver<
         oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>,
     >,
-    valid_id_tx: watch::Sender<std::collections::BTreeSet<TrainID>>,
+    valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
 ) {
     struct TrackPiece {
@@ -229,7 +231,8 @@ async fn train_master(
         ),
     ];
 
-    let mut viewer_channels: Vec<mpsc::Sender<ServerPacket>> = Vec::new();
+    let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
+    let mut next_viewer_serial = 0u32;
     let (click_tx, mut click_rx) = mpsc::channel(32);
 
     loop {
@@ -262,7 +265,7 @@ async fn train_master(
                         }
                         train.progress = 0f64; // TODO: actually calculate progress
 
-                        for channel in &mut viewer_channels {
+                        for (_, channel) in viewer_channels.iter() {
                             channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
@@ -283,7 +286,7 @@ async fn train_master(
                         }
                         train.progress = 0f64; // TODO: actually calculate progress
 
-                        for channel in &mut viewer_channels {
+                        for (_, channel) in viewer_channels.iter() {
                             channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
@@ -311,7 +314,7 @@ async fn train_master(
                         }
                         train.progress = 0f64; // TODO: actually calculate progress
 
-                        for channel in &mut viewer_channels {
+                        for (_, channel) in viewer_channels.iter() {
                             channel.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, 0f64, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                             / train.properties.speed), train.properties.image.clone())).await;
                         }
@@ -319,7 +322,8 @@ async fn train_master(
                     notify_tx.send(ServerPacket::PacketTRAIN(i as u32, train.current_track, train.progress, tokio::time::Duration::from_secs_f64(tracks[train.current_track as usize].0.length
                     / train.properties.speed), train.properties.image.clone())).await;
                 }
-                viewer_channels.push(notify_tx);
+                viewer_channels.insert(next_viewer_serial, notify_tx);
+                next_viewer_serial += 1;
             }
 
             _ = derail_rx.recv() => {
@@ -334,7 +338,7 @@ async fn train_master(
 async fn main() {
     let (view_request_tx, view_request_rx) = mpsc::channel(32);
 
-    let (valid_id_tx, valid_id_rx) = watch::channel(std::collections::BTreeSet::new());
+    let (valid_id_tx, valid_id_rx) = watch::channel(BTreeSet::new());
 
     let (derail_tx, derail_rx) = mpsc::channel(1);
 
