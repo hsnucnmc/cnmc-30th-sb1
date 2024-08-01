@@ -3,8 +3,30 @@ let image_name = "train_right.png";
 const train_width = 350 / 4; // TODO: adjust with image size
 const train_height = 263 / 4;
 
-let relative_x = 0;
-let relative_y = 0;
+let relative_x = Number(document.cookie.split("; ").find(row => row.startsWith("relative_x="))?.split("=")[1]);
+let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("relative_y="))?.split("=")[1]);
+
+let ask_attempt = 0;
+
+while (Number.isNaN(relative_x) || relative_x < -4000 || 4000 < relative_x) {
+    relative_x = Number(window.prompt("Relative x?", "0"));
+    ask_attempt++;
+    if (ask_attempt > 10) {
+        relative_x = 0;
+    }
+}
+
+ask_attempt = 0;
+while (Number.isNaN(relative_y) || relative_y < -2000 || 2000 < relative_y) {
+    relative_y = Number(window.prompt("Relative y?", "0"));
+    ask_attempt++;
+    if (ask_attempt > 10) {
+        relative_y = 0;
+    }
+}
+
+document.cookie = "relative_x=" + relative_x;
+document.cookie = "relative_y=" + relative_y;
 
 const main_canvas = document.getElementById("main-canvas");
 
