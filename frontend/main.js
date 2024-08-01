@@ -339,7 +339,7 @@ window.addEventListener("click", function (event) {
     trainposition.forEach(pos=>{
         clickr= Math.sqrt(Math.pow(mousePos.x-pos.x,2)+Math.pow(mousePos.y-pos.y,2));
         if(clickr<=r){
-            socket.send("click\n" + pos.id);
+            socket.send("click\n" + pos.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
         }
     });
 });

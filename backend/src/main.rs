@@ -9,8 +9,12 @@ use train_backend::packet::*;
 
 #[derive(Clone)]
 struct AppState {
-    view_request_tx:
-        mpsc::Sender<oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>>,
+    view_request_tx: mpsc::Sender<
+        oneshot::Sender<(
+            mpsc::Receiver<ServerPacket>,
+            mpsc::Sender<(TrainID, ClickModifier)>,
+        )>,
+    >,
     valid_id: watch::Receiver<BTreeSet<TrainID>>,
     derail_tx: mpsc::Sender<()>,
 }
@@ -79,12 +83,12 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                 };
 
                 match packet {
-                    ClientPacket::PacketCLICK(train_id) => {
+                    ClientPacket::PacketCLICK(train_id, modifier) => {
                         if !state.valid_id.borrow().contains(&train_id) {
                             println!("A websocket connection sent a packet expected to be a CLICK but contains invalid train id");
                             break;
                         } else {
-                            match click_sender.send(train_id).await {
+                            match click_sender.send((train_id, modifier)).await {
                                 Ok(_) => (),
                                 Err(_) => {
                                     println!("Failed sending click updates to train master");
@@ -124,7 +128,10 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
 
 async fn train_master(
     mut view_request_rx: mpsc::Receiver<
-        oneshot::Sender<(mpsc::Receiver<ServerPacket>, mpsc::Sender<TrainID>)>,
+        oneshot::Sender<(
+            mpsc::Receiver<ServerPacket>,
+            mpsc::Sender<(TrainID, ClickModifier)>,
+        )>,
     >,
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
@@ -488,7 +495,7 @@ async fn train_master(
 
     let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
     let mut next_viewer_serial = 0u32;
-    let (click_tx, mut click_rx) = mpsc::channel(32);
+    let (click_tx, mut click_rx) = mpsc::channel::<(TrainID, ClickModifier)>(32);
 
     loop {
         let wait_start = tokio::time::Instant::now();
@@ -515,8 +522,8 @@ async fn train_master(
                 }
             }
             clicked = click_rx.recv() => {
-                let clicked = clicked.unwrap();
-                println!("Train#{} is clicked", clicked);
+                let (clicked, modifier) = clicked.unwrap();
+                println!("Train#{} is clicked, \n {:?}", clicked, modifier);
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {

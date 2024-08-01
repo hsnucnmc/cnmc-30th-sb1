@@ -18,15 +18,19 @@ impl std::fmt::Display for Coord {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Direction {
     Forward,
-    Backward
+    Backward,
 }
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Direction::Forward => "forward",
-            Direction::Backward => "backward",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Direction::Forward => "forward",
+                Direction::Backward => "backward",
+            }
+        )
     }
 }
 
@@ -73,7 +77,16 @@ impl std::fmt::Display for ServerPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::PacketTRAIN(train_id, track_id, start_t, duration, direction, image_src) => {
-                write!(f, "train\n{} {} {} {} {}\n{}", train_id, track_id, start_t, duration.as_secs_f64() * 1000f64, direction, image_src)
+                write!(
+                    f,
+                    "train\n{} {} {} {} {}\n{}",
+                    train_id,
+                    track_id,
+                    start_t,
+                    duration.as_secs_f64() * 1000f64,
+                    direction,
+                    image_src
+                )
             }
 
             Self::PacketTRACK(tracks) => {
@@ -93,9 +106,48 @@ impl From<ServerPacket> for axum::extract::ws::Message {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ClickModifier {
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+}
+
+impl std::str::FromStr for ClickModifier {
+    type Err = &'static str;
+
+    fn from_str(input: &str) -> Result<ClickModifier, Self::Err> {
+        if input.split(",").count() != 3 {
+            return Err("ClickModifier has unexpected amount of commas");
+        }
+
+        let split: Vec<&str> = input.split(",").collect();
+
+        let ctrl = match split[0] {
+            "0" => false,
+            "1" => true,
+            _ => return Err("ClickModifier contained a unexpected character"),
+        };
+
+        let shift = match split[1] {
+            "0" => false,
+            "1" => true,
+            _ => return Err("ClickModifier contained a unexpected character"),
+        };
+
+        let alt = match split[2] {
+            "0" => false,
+            "1" => true,
+            _ => return Err("ClickModifier contained a unexpected character"),
+        };
+
+        Ok(ClickModifier { ctrl, shift, alt })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ClientPacket {
-    PacketCLICK(TrainID),
+    PacketCLICK(TrainID, ClickModifier),
 }
 
 impl std::str::FromStr for ClientPacket {
@@ -110,12 +162,21 @@ impl std::str::FromStr for ClientPacket {
 
         match split[0] {
             "click" => {
-                let id = match split[1].parse() {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let id = match split_2[0].parse() {
                     Ok(id) => id,
                     Err(_) => return Err("Packet contains a bad train id number"),
                 };
+                let modifier = match split_2[1].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad click modifier"),
+                };
 
-                Ok(ClientPacket::PacketCLICK(id))
+                Ok(ClientPacket::PacketCLICK(id, modifier))
             }
             _ => Err("Packet contained a unexpected type identifier"),
         }
