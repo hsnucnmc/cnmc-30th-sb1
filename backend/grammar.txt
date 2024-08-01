@@ -13,12 +13,13 @@
 <start_t>		::= <f64>
 <duration>		::= <f64>
 <coord>			::= <f64> ";" <f64>
+<direction>     ::= "forward" | "backward"
 <bezier>		::= <bezier2> | <bezier3> | <bezier4>
 <bezier2>		::= "bezier2;" <coord> ";" <coord>
 <bezier3>		::= "bezier3;" <coord> ";" <coord> ";" <coord>
 <bezier4>		::= "bezier4;" <coord> ";" <coord> ";" <coord> ";" <coord>
 <track_update>	::= "track\n" <track_count> ( "\n" <track_id> " " <bezier> " " <color> " " <thickness>)+ # redraw and update train track list
-<train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> "\n" <image_src> # start drawing train on certain track with certain image, lasting duration secord in total
+<train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> " " <direction> "\n" <image_src> # start drawing train on certain track with certain image, lasting duration secord in total
 <click>			::= "click\n" <train_id> # train got clicked on client side
 <newnode>		::= "newnode\n" <junction_id> " " <track_id> "\n" <coord> " " <coord>
 <newtrain>		::= "newtrain\n" <coord> " " <track_id>

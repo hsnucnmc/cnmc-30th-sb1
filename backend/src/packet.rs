@@ -15,6 +15,31 @@ impl std::fmt::Display for Coord {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Direction {
+    Forward,
+    Backward
+}
+
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Direction::Forward => "forward",
+            Direction::Backward => "backward",
+        })
+    }
+}
+
+impl std::ops::Not for Direction {
+    type Output = Direction;
+    fn not(self) -> Direction {
+        match self {
+            Direction::Forward => Direction::Backward,
+            Direction::Backward => Direction::Forward,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Bezier {
     Bezier2(Coord, Coord),
@@ -40,15 +65,15 @@ impl std::fmt::Display for Bezier {
 
 #[derive(Debug, Clone)]
 pub enum ServerPacket {
-    PacketTRAIN(TrainID, TrackID, StartT, Duration, ImageSrc),
+    PacketTRAIN(TrainID, TrackID, StartT, Duration, Direction, ImageSrc),
     PacketTRACK(Vec<(TrackID, Bezier, Color, Thickness)>),
 }
 
 impl std::fmt::Display for ServerPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::PacketTRAIN(train_id, track_id, start_t, duration, image_src) => {
-                write!(f, "train\n{} {} {} {}\n{}", train_id, track_id, start_t, duration.as_secs_f64() * 1000f64, image_src)
+            Self::PacketTRAIN(train_id, track_id, start_t, duration, direction, image_src) => {
+                write!(f, "train\n{} {} {} {} {}\n{}", train_id, track_id, start_t, duration.as_secs_f64() * 1000f64, direction, image_src)
             }
 
             Self::PacketTRACK(tracks) => {
