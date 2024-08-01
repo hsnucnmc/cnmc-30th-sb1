@@ -25,6 +25,7 @@ while (Number.isNaN(relative_y) || relative_y < -2000 || 2000 < relative_y) {
     }
 }
 
+// TODO: ask for x y boundaries and scale track base on view port size
 document.cookie = "relative_x=" + relative_x;
 document.cookie = "relative_y=" + relative_y;
 
@@ -117,6 +118,49 @@ function bezierDerivative(coords, t) {
     }
 }
 
+function bezierSecondDerivative(coords, t) {
+    const n = (coords.length / 2) - 2; // Number of control points
+
+    if (n === 0) {
+        // Straight Line
+
+        return { ddx: 0, ddy: 0 };
+    }
+    else if (n === 1) {
+        // Quadratic Bezier curve
+        const [x0, y0, x1, y1, x2, y2] = coords;
+
+        const invT = 1 - t;
+
+        const dx = 2 * (-1) * (x1 - x0) + 2 * 1 * (x2 - x1);
+        const dy = 2 * (-1) * (y1 - y0) + 2 * 1 * (y2 - y1);
+
+        return { ddx: dx, ddy: dy };
+    } else if (n === 2) {
+        // Cubic Bezier curve
+        const [x0, y0, x1, y1, x2, y2, x3, y3] = coords;
+
+        const invT = -1;
+        const invT2 = 2*t;
+        const t2 = 2*t;
+
+        const dx = 3 * invT2 * (x1 - x0) + 6 * (-2) * t * (x2 - x1) + 3 * t2 * (x3 - x2);
+        const dy = 3 * invT2 * (y1 - y0) + 6 * (-2) * t * (y2 - y1) + 3 * t2 * (y3 - y2);
+
+        return { ddx: dx, ddy: dy };
+    } else {
+        throw new Error("Unsupported number of control points.\nSupported types are straight lines, quadratic (3 points) and cubic (4 points) beziers.");
+    }
+}
+
+function radiusOfCurvature(cordlist, current_t) {
+    let first = bezierDerivative(cordlist, current_t);
+    let second = bezierSecondDerivative(cordlist, current_t);
+    let dx = first.dx, dy = first.dy;
+    let ddx = second.ddx, ddy = second.ddy;
+    return Math.sqrt(dx*dx+dy*dy)/(dx*ddy-dy*ddy);
+}
+
 function drawPoint(ctx, point) {
     console.log(point);
     ctx.fillRect(point.x, point.y, 5, 5);
@@ -165,16 +209,13 @@ function drawTrack(ctx, track) {
     }
     ctx.stroke();
     
+    // TODO: adjust tie density base off of track length
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness / 6;
     let n = 30;
     for(let i = 0.5 / n / 2; i < 1; i+=1/n) {
         drawSingleTie(ctx, track, thickness * 2, i);
-    }
-    
-    // drawPoint(ctx, bezierPoint(track.cordlist, ));
-    
-    // TODO untest but should be good
+    }    
 }
 
 function redraw(time) {
