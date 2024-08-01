@@ -57,6 +57,24 @@ function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degr
     ctx.restore();
 }
 
+function bezierPoint(cordlist, current_t) {
+    let x_pos = 0, y_pos = 0;
+    if (cordlist.length == 4) {
+        // straight line
+        x_pos = (1 - current_t) * cordlist[0] + current_t * cordlist[2];
+        y_pos = (1 - current_t) * cordlist[1] + current_t * cordlist[3];
+    } else if (cordlist.length == 6) {
+        // one cp
+        x_pos = (1 - current_t) * (1 - current_t) * cordlist[0] + 2 * (1 - current_t) * current_t * cordlist[2] + current_t * current_t * cordlist[4];
+        y_pos = (1 - current_t) * (1 - current_t) * cordlist[1] + 2 * (1 - current_t) * current_t * cordlist[3] + current_t * current_t * cordlist[5];
+    } else if (cordlist.length == 8) {
+        // standard 2 cp
+        x_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[0] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[2] + 3 * (1 - current_t) * current_t * current_t * cordlist[4] + current_t * current_t * current_t * cordlist[6];
+        y_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[1] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[3] + 3 * (1 - current_t) * current_t * current_t * cordlist[5] + current_t * current_t * current_t * cordlist[7];
+    }
+    return {x: x_pos, y: y_pos};
+}
+
 function bezierDerivative(coords, t) {
     const n = (coords.length / 2) - 2; // Number of control points
 
@@ -98,15 +116,32 @@ function bezierDerivative(coords, t) {
     }
 }
 
+function drawPoint(ctx, point) {
+    console.log(point);
+    ctx.fillRect(point.x, point.y, 5, 5);
+}
+
+function drawSingleTie(ctx, track, length, current_t) {
+    let pos = bezierPoint(track.cordlist, current_t);
+    let un_normalized = bezierDerivative(track.cordlist, current_t);
+    let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
+    let dx = un_normalized.dx / speed * length / 2;
+    let dy = un_normalized.dy / speed * length / 2;
+    ctx.beginPath();
+    ctx.moveTo(pos.x+dy, pos.y-dx);
+    ctx.lineTo(pos.x-dy, pos.y+dx);
+    ctx.stroke();
+}
+
 function drawTrack(ctx, track) {
     let cordlist = track.cordlist;
     let color = track.color;
     let thickness = track.thickness;
-
+    
     ctx.beginPath();
+    ctx.strokeStyle = color;
     ctx.lineWidth = thickness;
     ctx.moveTo(cordlist[0], cordlist[1]);
-    ctx.strokeStyle = color;
     if (cordlist.length == 4) {
         ctx.lineTo(cordlist[2], cordlist[3]);
     } else if (cordlist.length == 6) {
@@ -115,6 +150,29 @@ function drawTrack(ctx, track) {
         ctx.bezierCurveTo(cordlist[2], cordlist[3], cordlist[4], cordlist[5], cordlist[6], cordlist[7]);
     }
     ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = thickness*0.75;
+    ctx.moveTo(cordlist[0], cordlist[1]);
+    if (cordlist.length == 4) {
+        ctx.lineTo(cordlist[2], cordlist[3]);
+    } else if (cordlist.length == 6) {
+        ctx.quadraticCurveTo(cordlist[2], cordlist[3], cordlist[4], cordlist[5]);
+    } else {
+        ctx.bezierCurveTo(cordlist[2], cordlist[3], cordlist[4], cordlist[5], cordlist[6], cordlist[7]);
+    }
+    ctx.stroke();
+    
+    ctx.strokeStyle = color;
+    ctx.lineWidth = thickness / 6;
+    let n = 30;
+    for(let i = 0.5 / n / 2; i < 1; i+=1/n) {
+        drawSingleTie(ctx, track, thickness * 2, i);
+    }
+    
+    // drawPoint(ctx, bezierPoint(track.cordlist, ));
+    
     // TODO untest but should be good
 }
 
@@ -141,18 +199,7 @@ function redraw(time) {
         img = new Image(); // Create new img element
         img.src = image_name;
     }
-    // TODO train behaviour different from the lebel of beizer curve
-    // realtime = time - movement_start;
-    // // let x_pos = (time - movement_start) / run_time * (main_canvas.clientWidth + train_width) - train_width;
-    // // TODO without considering train width itself
-    // let x_pos = ((time + run_time - realtime) / run_time) * dotlist[2] + (realtime / run_time) * dotlist[4];
-    // let y_pos = ((time + run_time - realtime) / run_time) * dotlist[3] + (realtime / run_time) * dotlist[5];//kinda make some sense?
-    // drawRotatedImg(main_context, x_pos + train_width / 2, y_pos + train_height / 2, 1 * Math.sin(2 * Math.PI * 30 * (time - movement_start) / run_time), x_pos, y_pos, img);
 
-    // if (x_pos > main_canvas.clientWidth) {
-    //     status = "nothing";
-    //     movement_start = time;
-    // }
     tracklist.forEach(track => {
         drawTrack(main_context, track);
     });
@@ -166,22 +213,9 @@ function redraw(time) {
         let current_t = (time - train.movement_start) / train.duration;
         if (current_t > 1.1)
             return;
-        let x_pos = 0;
-        let y_pos = 0;
-        if (cordlist.length == 4) {
-            // 2point curve
-            x_pos = (1 - current_t) * cordlist[0] + current_t * cordlist[2];
-            y_pos = (1 - current_t) * cordlist[1] + current_t * cordlist[3];
-        } else if (cordlist.length == 6) {
-            // one cp
-            x_pos = (1 - current_t) * (1 - current_t) * cordlist[0] + 2 * (1 - current_t) * current_t * cordlist[2] + current_t * current_t * cordlist[4];
-            y_pos = (1 - current_t) * (1 - current_t) * cordlist[1] + 2 * (1 - current_t) * current_t * cordlist[3] + current_t * current_t * cordlist[5];
-        } else if (cordlist.length == 8) {
-            // standard 2 cp
-            x_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[0] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[2] + 3 * (1 - current_t) * current_t * current_t * cordlist[4] + current_t * current_t * current_t * cordlist[6];
-            y_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[1] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[3] + 3 * (1 - current_t) * current_t * current_t * cordlist[5] + current_t * current_t * current_t * cordlist[7];
-        }
-
+        let point = bezierPoint(cordlist, current_t);
+        let x_pos = point.x;
+        let y_pos = point.y;
         //! not handling out of bound problem
         // now detrive
         let dresult = bezierDerivative(cordlist, current_t);
