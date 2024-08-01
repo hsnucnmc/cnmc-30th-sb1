@@ -189,43 +189,212 @@ async fn train_master(
 
     let tracks = {
         let tracks_vec = vec![
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(100f64, 500f64),
-                    Coord(100f64, 100f64),
-                    Coord(500f64, 100f64),
-                ),
-                color: "#66CCFF".into(),
-                thickness: 5f64,
-                length: 500f64,
-            },
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(500f64, 100f64), Coord(900f64, 300f64)),
-                color: "#66E5E5".into(),
-                thickness: 5f64,
-                length: 500f64,
-            },
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(900f64, 300f64),
-                    Coord(900f64, 500f64),
-                    Coord(500f64, 500f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 5f64,
-                length: 500f64,
-            },
+            // 1
             TrackPiece {
                 path: Bezier::Bezier4(
-                    Coord(500f64, 500f64),
-                    Coord(300f64, 300f64),
-                    Coord(100f64, 700f64),
-                    Coord(100f64, 500f64),
+                    Coord(2000f64, 100f64),
+                    Coord(2200f64, 400f64),
+                    Coord(2900f64, 200f64),
+                    Coord(2800f64, 500f64),
                 ),
-                color: "#66E5E5".into(),
-                thickness: 5f64,
+                color: "#66FFCC".into(),
+                thickness: 20f64,
                 length: 500f64,
             },
+            //2
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(2800f64, 500f64),
+                    Coord(2400f64, 300f64),
+                    Coord(2400f64, 550f64),
+                    Coord(2200f64, 550f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,            
+            },    
+            // 3
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(2200f64, 550f64),
+                    Coord(2000f64, 550f64),
+                    Coord(2100f64, 450f64),
+                    Coord(1800f64, 350f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 4
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(1800f64, 350f64),
+                    Coord(1300f64, 400f64),                    
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 5
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(1300f64, 400f64),
+                    Coord(1200f64, 550f64),
+                    Coord(1000f64, 400f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 6
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(1000f64, 400f64),
+                    Coord(650f64, 300f64),
+                    Coord(300f64, 400f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 7
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(300f64, 400f64),
+                    Coord(175f64, 550f64),
+                    Coord(-200f64, 550f64),
+                    Coord(-200f64, 300f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 8
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(-200f64, 300f64),
+                    Coord(-445f64, 500f64),
+                    Coord(-1175f64, 550f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 9
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(-1175f64, 550f64),
+                    Coord(-1500f64, 400f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 10
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(-1500f64, 400f64),
+                    Coord(-2150f64, 450f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 11
+            TrackPiece {
+                path: Bezier::Bezier3(
+                    Coord(-2150f64, 450f64),
+                    Coord(-2600f64, 550f64),
+                    Coord(-2800f64, 100f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 12
+            TrackPiece {
+                path: Bezier::Bezier2(
+                    Coord(-2800f64, 100f64),
+                    Coord(-2100f64, 100f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 13
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-2100f64, 100f64),
+                    Coord(-1900f64, 150f64),
+                    Coord(-2000f64, 300f64),
+                    Coord(-1800f64, 350f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 14
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-1800f64, 350f64),
+                    Coord(-1700f64, 350f64),
+                    Coord(-1700f64, 300f64),
+                    Coord(-1700f64, 100f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 15
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-1700f64, 100f64),
+                    Coord(-1500f64, 100f64),
+                    Coord(-1600f64, 300f64),
+                    Coord(-1200f64, 300f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 16
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-1200f64, 300f64),
+                    Coord(-1100f64, 300f64),
+                    Coord(-950f64, 200f64),
+                    Coord(-900f64, 100f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 17
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-900f64, 100f64),
+                    Coord(-800f64, 100f64),
+                    Coord(-700f64, 150f64),
+                    Coord(-400f64, 200f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+            // 18
+            TrackPiece {
+                path: Bezier::Bezier4(
+                    Coord(-400f64, 200f64),
+                    Coord(0f64, 200f64),
+                    Coord(0f64, 50f64),
+                    Coord(400f64, 200f64),
+                ),
+                color: "#66FFCC".into(),
+                thickness: 20f64,
+                length: 500f64,
+            },
+                        
+
         ];
         let mut tracks = BTreeMap::new();
         for (i, track) in tracks_vec.into_iter().enumerate() {
