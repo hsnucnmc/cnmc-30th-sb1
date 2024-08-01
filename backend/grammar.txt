@@ -25,5 +25,6 @@
 <junction_id>   ::= <f64>
 <side>          ::= <bool>
 <movejunction>  ::= "movejunction\n" <junction_id> " " <side>
-<server_packet>	::= <track_update> | <train_update>
+<junction_update>::= "junction\n" <junction_id> " " <side>
+<server_packet>	::= <track_update> | <train_update> | <junction_update>
 <client_packet>	::= <click> | <newnode> | <newtrain> | <movejunction>
