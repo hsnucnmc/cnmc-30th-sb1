@@ -47,6 +47,7 @@ let run_time = 1000.0; //?ms
 
 let trainlist = new Map();
 let tracklist = new Map();
+let trainposition = [];
 
 function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degree, object_x, object_y, img) {
     ctx.save();
@@ -204,7 +205,8 @@ function redraw(time) {
         drawTrack(main_context, track);
     });
 
-    trainlist.forEach(train => {
+    trainposition = [];
+    trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
             train.movement_start = time - Number(train.start_t) * Number(train.duration);
         }
@@ -216,6 +218,11 @@ function redraw(time) {
         let point = bezierPoint(cordlist, current_t);
         let x_pos = point.x;
         let y_pos = point.y;
+        let trainpositionitem = {};
+        trainpositionitem.id=id;
+        trainpositionitem.x=x_pos;
+        trainpositionitem.y=y_pos;
+        trainposition.push(trainpositionitem);
         //! not handling out of bound problem
         // now detrive
         let dresult = bezierDerivative(cordlist, current_t);
@@ -279,10 +286,12 @@ socket.onopen = (event) => {
 // update click on demand
 window.addEventListener("click", function (event) {
     mousePos = { x: event.clientX, y: event.clientY };
-    //TODO finish this
-    socket.send("click\n" + "0");
-    //if mousePos is on anyone of the trains
-    // mousePosText.textContent = `(${mousePos.x}, ${mousePos.y})`;
-    //     click return which train have been clicked and its id one number
-    // NOT IMPLMENT YET
+    r=Math.sqrt(Math.pow(train_width/2,2)+Math.pow(train_height/2,2))
+    // time complexity (o(n))
+    trainposition.forEach(pos=>{
+        clickr= Math.sqrt(Math.pow(mousePos.x-pos.x,2)+Math.pow(mousePos.y-pos.y,2));
+        if(clickr<=r){
+            socket.send("click\n" + pos.id);
+        }
+    })
 });
