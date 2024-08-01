@@ -34,9 +34,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         Ok(_) => {}
         Err(_) => {
             println!("Failed to send update subscription, is train master dead?");
-            let _ = socket
-                .send(ws::Message::Close(Option::None))
-                .await;
+            let _ = socket.send(ws::Message::Close(Option::None)).await;
             return;
         }
     };
@@ -45,9 +43,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         Ok(rx) => rx,
         Err(_) => {
             println!("Failed to subscribe to train updates");
-            let _ = socket
-                .send(ws::Message::Close(Option::None))
-                .await;
+            let _ = socket.send(ws::Message::Close(Option::None)).await;
             return;
         }
     };
@@ -122,9 +118,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     // }
     // }
 
-    let _ = socket
-        .send(ws::Message::Close(Option::None))
-        .await;
+    let _ = socket.send(ws::Message::Close(Option::None)).await;
     return;
 }
 
@@ -156,13 +150,13 @@ async fn train_master(
     }
 
     impl TrainInstance {
-        fn to_packet(&self, id: u32, tracks: &Vec<(TrackPiece, u32)>) -> ServerPacket {
+        fn to_packet(&self, id: u32, tracks: &BTreeMap<u32, TrackPiece>) -> ServerPacket {
             ServerPacket::PacketTRAIN(
                 id,
                 self.current_track,
                 self.progress,
                 tokio::time::Duration::from_secs_f64(
-                    tracks[self.current_track as usize].0.length / self.properties.speed,
+                    tracks.get(&self.current_track).unwrap().length / self.properties.speed,
                 ),
                 self.properties.image.clone(),
             )
@@ -193,8 +187,8 @@ async fn train_master(
     let valid_train_id = (0..trains.len() as u32).collect();
     valid_id_tx.send(valid_train_id).unwrap();
 
-    let tracks = vec![
-        (
+    let tracks = {
+        let tracks_vec = vec![
             TrackPiece {
                 path: Bezier::Bezier3(
                     Coord(100f64, 500f64),
@@ -205,18 +199,12 @@ async fn train_master(
                 thickness: 5f64,
                 length: 500f64,
             },
-            0,
-        ),
-        (
             TrackPiece {
                 path: Bezier::Bezier2(Coord(500f64, 100f64), Coord(900f64, 300f64)),
                 color: "#66E5E5".into(),
                 thickness: 5f64,
                 length: 500f64,
             },
-            1,
-        ),
-        (
             TrackPiece {
                 path: Bezier::Bezier3(
                     Coord(900f64, 300f64),
@@ -227,9 +215,6 @@ async fn train_master(
                 thickness: 5f64,
                 length: 500f64,
             },
-            2,
-        ),
-        (
             TrackPiece {
                 path: Bezier::Bezier4(
                     Coord(500f64, 500f64),
@@ -241,9 +226,13 @@ async fn train_master(
                 thickness: 5f64,
                 length: 500f64,
             },
-            3,
-        ),
-    ];
+        ];
+        let mut tracks = BTreeMap::new();
+        for (i, track) in tracks_vec.into_iter().enumerate() {
+            tracks.insert(i as u32, track);
+        }
+        tracks
+    };
 
     let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
     let mut next_viewer_serial = 0u32;
@@ -257,7 +246,7 @@ async fn train_master(
             .iter()
             .map(|train| {
                 ordered_float::OrderedFloat(
-                    tracks[train.current_track as usize].0.length * (1f64 - train.progress)
+                    tracks.get(&train.current_track).unwrap().length * (1f64 - train.progress)
                         / train.properties.speed,
                 )
             })
@@ -271,7 +260,7 @@ async fn train_master(
             _ = wait_time => {
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
                     if train.progress >= 1f64 {
                         train.current_track += 1;
                         if train.current_track >= tracks.len() as u32 {
@@ -291,7 +280,7 @@ async fn train_master(
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
                     if train.progress >= 1f64 {
                         train.current_track += 1;
                         if train.current_track >= tracks.len() as u32 {
@@ -313,12 +302,12 @@ async fn train_master(
 
                 response_tx.send((notify_rx, click_tx.clone())).unwrap();
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
-                    |a| (a.1, a.0.path, a.0.color.clone(), a.0.thickness)
+                    |a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness)
                 ).collect())).await.unwrap();
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks[train.current_track as usize].0.length;
+                    train.progress += ((wait_end - wait_start).as_secs_f64() * train.properties.speed) / tracks.get(&train.current_track).unwrap().length;
                     if train.progress >= 1f64 {
                         train.current_track += 1;
                         if train.current_track >= tracks.len() as u32 {
