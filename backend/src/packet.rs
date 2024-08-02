@@ -297,34 +297,65 @@ impl std::str::FromStr for CtrlPacket {
         let split: Vec<&str> = input.split("\n").collect();
 
         match split[0] {
+            // TODO: check for valid node, train and track ids
             "node_new" => match split[1].parse() {
                 Ok(coord) => return Ok(CtrlPacket::NewNode(coord)),
                 Err(_) => return Err("Packet NewNode contains a bad coordinate"),
             },
             "train_new" => match split[1].parse() {
                 Ok(track_id) => return Ok(CtrlPacket::NewTrain(track_id)),
-                Err(_) => return Err("Packet NewNode contains a bad track_id"),
+                Err(_) => return Err("Packet NewTrain contains a bad track_id"),
             },
-            "track_new" => match split[1].parse() 
-                Ok(track_id) => return Ok(CtrlPacket::NewTrain(track_id)),
-                Err(_) => return Err("Packet NewNode contains a bad track_id"),
-            },
-            "node_new" => {
+            "track_new" => {
                 if split[1].split(" ").count() != 2 {
-                    return Err("Packet has unexpected amount of whitespaces");
+                    return Err("Packet NewTrack has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let id1 = match split_2[0].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad node 1 id"),
+                };
+                let id2 = match split_2[1].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad node 2 id"),
+                };
+
+                Ok(CtrlPacket::NewTrack(id1, id2))
+            },
+            "node_move" => {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet NodeMove has unexpected amount of whitespaces");
                 }
 
                 let split_2: Vec<_> = split[1].split(" ").collect();
                 let id = match split_2[0].parse() {
                     Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad train id number"),
+                    Err(_) => return Err("Packet contains a bad node id"),
                 };
-                let modifier = match split_2[1].parse() {
-                    Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad click modifier"),
+                let coord = match split_2[1].parse() {
+                    Ok(coord) => coord,
+                    Err(_) => return Err("Packet contains a bad coordinate"),
                 };
 
-                Ok(ClientPacket::PacketCLICK(id, modifier))
+                Ok(CtrlPacket::NodeMove(id, coord))
+            },
+            "track_adjust" => {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet TrackAdjust has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let id = match split_2[0].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad track id"),
+                };
+                let diff = match split_2[1].parse() {
+                    Ok(diff) => diff,
+                    Err(_) => return Err("Packet contains a bad track adjustment"),
+                };
+
+                Ok(CtrlPacket::TrackAdjust(id, diff))
             }
             _ => Err("Packet contained a unknown type identifier"),
         }
