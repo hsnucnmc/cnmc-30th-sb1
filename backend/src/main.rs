@@ -257,6 +257,16 @@ async fn train_master(
             progress: 0.0,
             direction: Direction::Backward,
         },
+        TrainInstance {
+            properties: TrainProperties {
+                speed: 250f64,
+                image_forward: "train2_right.png".into(),
+                image_backward: "train2_left.png".into(),
+            },
+            current_track: 0,
+            progress: 0.0,
+            direction: Direction::Forward,
+        },
     ];
 
     let valid_train_id = (0..trains.len() as u32).collect();
@@ -547,7 +557,7 @@ async fn train_master(
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
                     if i == clicked as usize {
-                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(2), &tracks) {
+                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &tracks) {
                             for (_, channel) in viewer_channels.iter() {
                                 channel.send(train.to_packet(i as u32, &tracks)).await;
                             }
