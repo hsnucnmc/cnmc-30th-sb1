@@ -136,11 +136,39 @@ async fn train_master(
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
 ) {
+    struct Node {
+        id: NodeID,
+        coord: Coord,
+        connections: BTreeMap<TrackID, Direction> // 順向還是反向進入接點；
+    }
+
     struct TrackPiece {
+        id: TrackID,
+        start: NodeID,
+        end: NodeID,
         path: Bezier,         // px
         color: Color,         // #FFFFFF
         thickness: Thickness, // px
         length: f64,          // px
+    }
+
+    impl TrackPiece {
+        fn new(id: TrackID, start: &mut Node, end: &mut Node, diff: BezierDiff, color: Color, thickness: Thickness) -> TrackPiece {
+            start.connections.insert(id, Direction::Backward);
+            end.connections.insert(id, Direction::Forward);
+
+            let path = Bezier::new(start.coord, end.coord, diff);
+
+            TrackPiece {
+                id,
+                start: start.id,
+                end: end.id,
+                path,
+                color,
+                thickness,
+                length: path.fast_length()
+            }
+        }
     }
 
     struct TrainProperties {
@@ -271,6 +299,10 @@ async fn train_master(
 
     let valid_train_id = (0..trains.len() as u32).collect();
     valid_id_tx.send(valid_train_id).unwrap();
+
+    let nodes = {
+        let nodes_vec 
+    }
 
     let tracks = {
         let tracks_vec = vec![

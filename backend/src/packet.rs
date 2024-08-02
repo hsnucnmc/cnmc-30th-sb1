@@ -16,6 +16,12 @@ impl std::fmt::Display for Coord {
     }
 }
 
+impl Coord {
+    fn distance_to(&self, coord: &Coord) -> f64{
+        ((self.0 - coord.0).powi(2) + (self.1 - coord.1).powi(2)).sqrt()
+    }
+}
+
 impl std::str::FromStr for Coord {
     type Err = &'static str;
 
@@ -72,6 +78,61 @@ pub enum Bezier {
     Bezier2(Coord, Coord),
     Bezier3(Coord, Coord, Coord),
     Bezier4(Coord, Coord, Coord, Coord),
+}
+
+impl Bezier {
+    #[inline]
+    pub fn fast_length(&self) -> f64 {
+        match self {
+            Bezier::Bezier2(p1, p2) => p1.distance_to(p2),
+            Bezier::Bezier3(p1, p2, p3) => (p1.distance_to(p2)+p2.distance_to(p3)+p1.distance_to(p3)) / 2.0,
+            Bezier::Bezier4(p1, p2, p3, p4) => (p1.distance_to(p2)+p2.distance_to(p3)+p3.distance_to(p4)+p1.distance_to(p4)) / 2.0,
+        }
+    }
+
+    #[inline]
+    pub fn start(&self) -> &Coord {
+        match self {
+            Self::Bezier2(start, _) => start,
+            Self::Bezier3(start, _, _) => start,
+            Self::Bezier4(start, _, _, _) => start,
+        }
+    }
+
+    #[inline]
+    pub fn end(&self) -> &Coord {
+        match self {
+            Self::Bezier2(_, end) => end,
+            Self::Bezier3(_, _, end) => end,
+            Self::Bezier4(_, _, _, end) => end,
+        }
+    }
+
+    #[inline]
+    pub fn apply_diff(&mut self, diff: BezierDiff){
+        let start = self.start().clone();
+        let end = self.end().clone();
+
+        *self = match diff {
+            BezierDiff::ToBezier2 => Self::Bezier2(start, end),
+            BezierDiff::ToBezier3(p) => Self::Bezier3(start, p, end),
+            BezierDiff::ToBezier4(p1, p2) => Self::Bezier4(start, p1, p2, end)
+        };
+    }
+
+    pub fn new(start: Coord, end: Coord, diff: BezierDiff) -> Bezier {
+        match diff {
+            BezierDiff::ToBezier2 => {
+                Bezier::Bezier2(start, end)
+            }
+            BezierDiff::ToBezier3(p) => {
+                Bezier::Bezier3(start, p, end)
+            }
+            BezierDiff::ToBezier4(p1, p2) => {
+                Bezier::Bezier4(start, p1, p2, end)
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Bezier {
