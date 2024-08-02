@@ -168,8 +168,8 @@ function drawPoint(ctx, point) {
 }
 
 function drawSingleTie(ctx, track, length, current_t) {
-    let pos = bezierPoint(track.cordlist, current_t);
-    let un_normalized = bezierDerivative(track.cordlist, current_t);
+    let pos = bezierPoint(track, current_t);
+    let un_normalized = bezierDerivative(track, current_t);
     let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
     let dx = un_normalized.dx / speed * length / 2;
     let dy = un_normalized.dy / speed * length / 2;
@@ -180,13 +180,12 @@ function drawSingleTie(ctx, track, length, current_t) {
 }
 //! only have to handle this section
 function drawTrack(ctx, track) {
-    let cordlist = track.cordlist;
-    let color = track.color;
-    let thickness = track.thickness;
-
+    let cordlist = track;
+    thickness=4;
+    color="#000";
     ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = thickness;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
     ctx.moveTo(cordlist[0], cordlist[1]);
     if (cordlist.length == 4) {
         ctx.lineTo(cordlist[2], cordlist[3]);
@@ -279,8 +278,8 @@ function redraw(time) {
 window.requestAnimationFrame(redraw);
 
 let url = new URL(window.location.href);
-console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
-let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
+let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host  + "/ws");
 let maxtrackcount = 0;
 socket.onopen = (event) => {
     // socket.send("position\n" + left_bound + " " + right_bound);
@@ -293,7 +292,7 @@ socket.onopen = (event) => {
         switch (msg_split[0]) {
             case "train":
                 // code block
-                throw new Error("Undefined behavior train update");
+                // throw new Error("Undefined behavior train update");
             case "track":
                 for (i = 2; i < msg_split.length; i++) {
                     args = msg_split[i].split(" ");
@@ -317,6 +316,7 @@ let junction_id = 1; //! MUST CHNAGE THIS TODO
 
 function newnode() {
     let x, y;
+    document.getElementById('status').innerText="Click a starting point";
     window.addEventListener("click", function (event) { //clicking start point
         mousePos = { x: event.clientX, y: event.clientY };
         //find the closest node -> have a node list? where can i get the node this! -> save all cord when recive to a list
@@ -334,12 +334,13 @@ function newnode() {
             }
         });
     });
-
+    document.getElementById('status').innerText="Click a ending point";
     window.addEventListener("click", function (event) { //clicking end point
         maxtrackcount += 1;//! TODO this function can only add linear line
         socket.send("newnode\n" + junction_id + " " + maxtrackcount + "\n" + x + ";" + y + " " + event.clientX + ";" + event.clientY);
         tracklist.set(maxtrackcount, [x, y, event.clientX, event.clientY]);
     });
+    document.getElementById('status').innerText="";
 }
 function SwitchJunction() {
     window.addEventListener("click", function (event) {
