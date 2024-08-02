@@ -7,6 +7,7 @@
 <image_src>		::= ( <alpha> | <digit> | "_" )+ ( ".png" | ".jpg") # valid image resource link
 <track_id>		::= <u32>
 <train_id>		::= <u32>
+<node_id>		::= <u32>
 <track_count>	::= <u32>
 <color>			::= "#" <hexdig> <hexdig> <hexdig> <hexdig> <hexdig> <hexdig>
 <thickness>		::= <f64>
@@ -14,7 +15,6 @@
 <duration>		::= <f64>
 <coord>			::= <f64> ";" <f64>
 <direction>		::= "forward" | "backward"
-<node_id>		::= <u32>
 
 <pressed_ctrl>	::= <bool>
 <pressed_shift>	::= <bool>
@@ -34,9 +34,10 @@
 <train_remove>	::= "remove\n" <train_id> " " <removal_type>
 <server_packet>	::= <track_update> | <train_update> | <node_update> | <train_remove>
 
+# <ctrl_click>	::= "ctrl_click\n" (("train " <train_id>) | ("track " <track_id>) | ("node" <node_id>))
 <node_new>		::= "node_new\n" <coord>
 <train_new>		::= "train_new\n" <track_id>
 <track_new>     ::= "track_new\n" <node_id> " " <node_id>
 <node_move>		::= "node_move\n" <node_id> " " <coord>
-<track_adjust>	::= "track_adjust\n" <track_id>  ( " " <coord> | " " <coord> " " <coord>)?
-<ctrl_packet>	::=	<click> | <node_new> | <train_new> | <track_new> | <node_move> | <track_adjust>
+<track_adjust>	::= "track_adjust\n" <track_id>  " " ( <coord> | <coord> "," <coord>)?
+<ctrl_packet>	::=	<node_new> | <train_new> | <track_new> | <node_move> | <track_adjust>
