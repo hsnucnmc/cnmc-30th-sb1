@@ -1,10 +1,10 @@
 <alpha>			::= [a-z] | [A-Z]
 <digit>			::= [0-9]
 <hexdig>		::= <digit> | ("A" | "B" | "C" | "D" | "E" | "F")
-<u32>			::= <digit>+ # valid rust u32
-<f64>			::= ("+" | "-")? <digit>+  ( "." <digit>+ )? # valid rust f64
+<u32>			::= <digit>+
+<f64>			::= ("+" | "-")? <digit>+  ( "." <digit>+ )?
 <bool>			::= "0" | "1"
-<image_src>		::= ( <alpha> | <digit> | "_" )+ ( ".png" | ".jpg") # valid image resource link
+<image_src>		::= ( <alpha> | <digit> | "_" )+ ( ".png" | ".jpg")
 <track_id>		::= <u32>
 <train_id>		::= <u32>
 <track_count>	::= <u32>
@@ -36,7 +36,7 @@
 
 <node_new>		::= "node_new\n" <coord>
 <train_new>		::= "train_new\n" <track_id>
-<track_new>     ::= "track_new\n" <node_id> " " <node_id>
+<track_new>     ::= "track_new\n" <node_id> " " <node_id>  ( " " <coord> | " " <coord> " " <coord>)?
 <node_move>		::= "node_move\n" <node_id> " " <coord>
 <track_adjust>	::= "track_adjust\n" <track_id>  ( " " <coord> | " " <coord> " " <coord>)?
 <ctrl_packet>	::=	<click> | <node_new> | <train_new> | <track_new> | <node_move> | <track_adjust>
