@@ -43,6 +43,7 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 let derail_img = new Image();
+derail_img.id = "derail-img";
 derail_img.src = "derail.png";
 
 let status = "nothing";
@@ -76,7 +77,7 @@ function bezierPoint(cordlist, current_t) {
         x_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[0] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[2] + 3 * (1 - current_t) * current_t * current_t * cordlist[4] + current_t * current_t * current_t * cordlist[6];
         y_pos = (1 - current_t) * (1 - current_t) * (1 - current_t) * cordlist[1] + 3 * (1 - current_t) * (1 - current_t) * current_t * cordlist[3] + 3 * (1 - current_t) * current_t * current_t * cordlist[5] + current_t * current_t * current_t * cordlist[7];
     }
-    return {x: x_pos, y: y_pos};
+    return { x: x_pos, y: y_pos };
 }
 
 function bezierDerivative(coords, t) {
@@ -143,8 +144,8 @@ function bezierSecondDerivative(coords, t) {
         const [x0, y0, x1, y1, x2, y2, x3, y3] = coords;
 
         const invT = -1;
-        const invT2 = 2*t;
-        const t2 = 2*t;
+        const invT2 = 2 * t;
+        const t2 = 2 * t;
 
         const dx = 3 * invT2 * (x1 - x0) + 6 * (-2) * t * (x2 - x1) + 3 * t2 * (x3 - x2);
         const dy = 3 * invT2 * (y1 - y0) + 6 * (-2) * t * (y2 - y1) + 3 * t2 * (y3 - y2);
@@ -160,7 +161,7 @@ function radiusOfCurvature(cordlist, current_t) {
     let second = bezierSecondDerivative(cordlist, current_t);
     let dx = first.dx, dy = first.dy;
     let ddx = second.ddx, ddy = second.ddy;
-    return Math.sqrt(dx*dx+dy*dy)/(dx*ddy-dy*ddy);
+    return Math.sqrt(dx * dx + dy * dy) / (dx * ddy - dy * ddy);
 }
 
 function drawPoint(ctx, point) {
@@ -175,8 +176,8 @@ function drawSingleTie(ctx, track, length, current_t) {
     let dx = un_normalized.dx / speed * length / 2;
     let dy = un_normalized.dy / speed * length / 2;
     ctx.beginPath();
-    ctx.moveTo(pos.x+dy, pos.y-dx);
-    ctx.lineTo(pos.x-dy, pos.y+dx);
+    ctx.moveTo(pos.x + dy, pos.y - dx);
+    ctx.lineTo(pos.x - dy, pos.y + dx);
     ctx.stroke();
 }
 
@@ -184,7 +185,7 @@ function drawTrack(ctx, track) {
     let cordlist = track.cordlist;
     let color = track.color;
     let thickness = track.thickness;
-    
+
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness;
@@ -200,7 +201,7 @@ function drawTrack(ctx, track) {
 
     ctx.beginPath();
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = thickness*0.75;
+    ctx.lineWidth = thickness * 0.75;
     ctx.moveTo(cordlist[0], cordlist[1]);
     if (cordlist.length == 4) {
         ctx.lineTo(cordlist[2], cordlist[3]);
@@ -210,12 +211,12 @@ function drawTrack(ctx, track) {
         ctx.bezierCurveTo(cordlist[2], cordlist[3], cordlist[4], cordlist[5], cordlist[6], cordlist[7]);
     }
     ctx.stroke();
-    
+
     // TODO: adjust tie density base off of track length
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness / 6;
     let n = 30;
-    for(let i = 0.5 / n / 2; i < 1; i+=1/n) {
+    for (let i = 0.5 / n / 2; i < 1; i += 1 / n) {
         drawSingleTie(ctx, track, thickness * 2, i);
     }
     if (debugMode) {
@@ -269,9 +270,9 @@ function redraw(time) {
         let x_pos = point.x;
         let y_pos = point.y;
         let trainpositionitem = {};
-        trainpositionitem.id=id;
-        trainpositionitem.x=x_pos;
-        trainpositionitem.y=y_pos;
+        trainpositionitem.id = id;
+        trainpositionitem.x = x_pos;
+        trainpositionitem.y = y_pos;
         trainposition.push(trainpositionitem);
         //! not handling out of bound problem
         // now detrive
@@ -288,64 +289,79 @@ window.requestAnimationFrame(redraw);
 
 let url = new URL(window.location.href);
 console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
-let socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+let socket = null;
+function startSocket() {
+    socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
 
-socket.onopen = (event) => {
-    // socket.send("position\n" + left_bound + " " + right_bound);
-    socket.onmessage = (msg) => {
-        // console.log(msg);
-        let msg_split = msg.data.split("\n");
-        // * ! BLIND start here
-        let row_count = 1;
-        //prase here
-        switch (msg_split[0]) {
-            case "train":
-                // code block
-                args = msg_split[1].split(" ");
-                let new_train = {};
-                new_train.track_id = Number(args[1]);
-                new_train.start_t = Number(args[2]);
-                new_train.duration = Number(args[3]);
-                if (args[4] == "forward") {
-                    new_train.direction = 1;
-                } else {
-                    new_train.direction = -1;
-                }
-                new_train.img = new Image();
-                new_train.img.src = msg_split[2];
-                new_train.movement_start = NaN;
-
-                trainlist.set(Number(args[0]), new_train);
-                break;
-            case "track":
-                for (i = 2; i < msg_split.length; i++) {
-                    args = msg_split[i].split(" ");
-                    let track = {};
-                    let cordlist = args[1].split(";").map(x => Number(x));
-                    cordlist.shift();
-                    track.cordlist = cordlist
-                    track.color = args[2];
-                    track.thickness = Number(args[3]);
-
-                    tracklist.set(Number(args[0]), track);
-                }
-                break;
-        }
-    };
-    socket.onclose = (msg) => {
+    
+    socket.onerror = e => {
         main_canvas.hidden = true;
         document.getElementById("main-canvas").parentElement.append(derail_img);
+        window.setTimeout(startSocket, 2000);
     };
-};
+    
+    socket.onopen = (event) => {
+        main_canvas.hidden = false;
+        derail_img.remove();
+        // socket.send("position\n" + left_bound + " " + right_bound);
+        socket.onmessage = (msg) => {
+            // console.log(msg);
+            let msg_split = msg.data.split("\n");
+            // * ! BLIND start here
+            let row_count = 1;
+            //prase here
+            switch (msg_split[0]) {
+                case "train":
+                    // code block
+                    args = msg_split[1].split(" ");
+                    let new_train = {};
+                    new_train.track_id = Number(args[1]);
+                    new_train.start_t = Number(args[2]);
+                    new_train.duration = Number(args[3]);
+                    if (args[4] == "forward") {
+                        new_train.direction = 1;
+                    } else {
+                        new_train.direction = -1;
+                    }
+                    new_train.img = new Image();
+                    new_train.img.src = msg_split[2];
+                    new_train.movement_start = NaN;
+
+                    trainlist.set(Number(args[0]), new_train);
+                    break;
+                case "track":
+                    for (i = 2; i < msg_split.length; i++) {
+                        args = msg_split[i].split(" ");
+                        let track = {};
+                        let cordlist = args[1].split(";").map(x => Number(x));
+                        cordlist.shift();
+                        track.cordlist = cordlist
+                        track.color = args[2];
+                        track.thickness = Number(args[3]);
+
+                        tracklist.set(Number(args[0]), track);
+                    }
+                    break;
+            }
+        };
+        socket.onclose = msg => {
+            main_canvas.hidden = true;
+            document.getElementById("main-canvas").parentElement.append(derail_img);
+            window.setTimeout(startSocket, 2000);
+        };
+    };
+}
+
+startSocket();
 
 // update click on demand
 window.addEventListener("click", function (event) {
-    mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y};
-    r=Math.sqrt(Math.pow(train_width/2,2)+Math.pow(train_height/2,2))
+    mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y };
+    r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2))
     // time complexity (o(n))
-    trainposition.forEach(pos=>{
-        clickr= Math.sqrt(Math.pow(mousePos.x-pos.x,2)+Math.pow(mousePos.y-pos.y,2));
-        if(clickr<=r){
+    trainposition.forEach(pos => {
+        clickr = Math.sqrt(Math.pow(mousePos.x - pos.x, 2) + Math.pow(mousePos.y - pos.y, 2));
+        if (clickr <= r) {
             socket.send("click\n" + pos.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
         }
     });
@@ -353,7 +369,7 @@ window.addEventListener("click", function (event) {
 
 // make window draggable
 window.addEventListener("mousemove", event => {
-    if(event.buttons === 1 && dragMode) {
+    if (event.buttons === 1 && dragMode) {
         relative_x -= event.movementX;
         relative_y -= event.movementY;
         document.cookie = "relative_x=" + relative_x;
