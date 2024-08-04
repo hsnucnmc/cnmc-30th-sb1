@@ -51,6 +51,7 @@ let run_time = 1000.0; //?ms
 
 let trainlist = new Map();
 let tracklist = new Map();
+let nodelist = new Map();
 let trainposition = [];
 
 function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degree, object_x, object_y, img) {
@@ -60,6 +61,10 @@ function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degr
     ctx.translate(-rotation_center_x, -rotation_center_y);
     ctx.drawImage(img, object_x, object_y, train_width, train_height);
     ctx.restore();
+}
+
+function pointDistance(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
 }
 
 function bezierPoint(cordlist, current_t) {
@@ -156,6 +161,15 @@ function bezierSecondDerivative(coords, t) {
     }
 }
 
+function bezierRoughLength(cordlist) {
+    let length = 0;
+    for (let i = 0; i <= 16; i++) {
+        length += pointDistance(bezierPoint(cordlist, i / 16), bezierPoint(cordlist, (i + 1) / 16));
+    }
+
+    return length;
+}
+
 function radiusOfCurvature(cordlist, current_t) {
     let first = bezierDerivative(cordlist, current_t);
     let second = bezierSecondDerivative(cordlist, current_t);
@@ -215,7 +229,7 @@ function drawTrack(ctx, track) {
     // TODO: adjust tie density base off of track length
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness / 6;
-    let n = 30;
+    let n = 30.0 * track.length / 500.0;
     for (let i = 0.5 / n / 2; i < 1; i += 1 / n) {
         drawSingleTie(ctx, track, thickness * 2, i);
     }
@@ -244,6 +258,14 @@ function redraw(time) {
         img = new Image(); // Create new img element
         img.src = image_name;
     }
+
+    main_context.fillStyle = "#BBB";
+    main_context.fillStyle = "#BBB";
+    nodelist.forEach(node => {
+        main_context.beginPath();
+        main_context.arc(node.x, node.y, 20, 0, 2 * Math.PI);
+        main_context.fill();
+    });
 
     tracklist.forEach(track => {
         drawTrack(main_context, track);
@@ -281,6 +303,12 @@ function redraw(time) {
         drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
 
+    main_context.fillStyle = "#BBB";
+    main_context.font = "40px monospace";
+    nodelist.forEach(node => {
+        main_context.fillText(node.id.toString().padStart(3, "0"), node.x - 20, node.y - 25);
+    });
+
     main_context.restore();
     window.requestAnimationFrame(redraw);
 }
@@ -293,13 +321,13 @@ let socket = null;
 function startSocket() {
     socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
 
-    
+
     socket.onerror = e => {
         main_canvas.hidden = true;
         document.getElementById("main-canvas").parentElement.append(derail_img);
         window.setTimeout(startSocket, 2000);
     };
-    
+
     socket.onopen = (event) => {
         main_canvas.hidden = false;
         derail_img.remove();
@@ -338,9 +366,18 @@ function startSocket() {
                         track.cordlist = cordlist
                         track.color = args[2];
                         track.thickness = Number(args[3]);
+                        track.length = bezierRoughLength(cordlist);
 
                         tracklist.set(Number(args[0]), track);
                     }
+                    break;
+                case "node":
+                    args = msg_split[1].split(" ");
+                    let new_node = {};
+                    new_node.id = Number(args[0]);
+                    new_node.x = Number(args[1].split(";")[0]);
+                    new_node.y = Number(args[1].split(";")[1]);
+                    nodelist.set(new_node.id, new_node);
                     break;
             }
         };
@@ -357,7 +394,7 @@ startSocket();
 // update click on demand
 window.addEventListener("click", function (event) {
     mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y };
-    r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2))
+    r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2));
     // time complexity (o(n))
     trainposition.forEach(pos => {
         clickr = Math.sqrt(Math.pow(mousePos.x - pos.x, 2) + Math.pow(mousePos.y - pos.y, 2));
