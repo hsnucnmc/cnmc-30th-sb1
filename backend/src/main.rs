@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
@@ -139,7 +139,7 @@ async fn train_master(
     struct Node {
         id: NodeID,
         coord: Coord,
-        connections: BTreeMap<TrackID, Direction> // 順向還是反向進入接點；
+        connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
     }
 
     struct TrackPiece {
@@ -153,20 +153,40 @@ async fn train_master(
     }
 
     impl TrackPiece {
-        fn new(id: TrackID, start: &mut Node, end: &mut Node, diff: BezierDiff, color: Color, thickness: Thickness) -> TrackPiece {
-            start.connections.insert(id, Direction::Backward);
-            end.connections.insert(id, Direction::Forward);
+        fn new(
+            id: TrackID,
+            start_id: NodeID,
+            end_id: NodeID,
+            nodes: &mut BTreeMap<NodeID, Node>,
+            diff: BezierDiff,
+            color: Color,
+            thickness: Thickness,
+        ) -> TrackPiece {
+            nodes
+                .get_mut(&start_id)
+                .unwrap()
+                .connections
+                .insert(id, Direction::Backward);
+            nodes
+                .get_mut(&end_id)
+                .unwrap()
+                .connections
+                .insert(id, Direction::Forward);
 
-            let path = Bezier::new(start.coord, end.coord, diff);
+            let path = Bezier::new(
+                nodes.get(&start_id).unwrap().coord,
+                nodes.get(&end_id).unwrap().coord,
+                diff,
+            );
 
             TrackPiece {
                 id,
-                start: start.id,
-                end: end.id,
+                start: start_id,
+                end: end_id,
                 path,
                 color,
                 thickness,
-                length: path.fast_length()
+                length: path.fast_length(),
             }
         }
     }
@@ -221,11 +241,11 @@ async fn train_master(
                             }
                         }
                         Direction::Backward => {
-                            if train.current_track == 0  {
+                            if train.current_track == 0 {
                                 train.current_track = tracks.len() as u32;
                             }
                             train.current_track -= 1;
-                        },
+                        }
                     }
 
                     train.progress = match train.direction {
@@ -234,8 +254,9 @@ async fn train_master(
                     };
                     flag = true;
                 } else {
-                    train.progress +=
-                        move_distance / tracks.get(&train.current_track).unwrap().length * match train.direction {
+                    train.progress += move_distance
+                        / tracks.get(&train.current_track).unwrap().length
+                        * match train.direction {
                             Direction::Forward => 1f64,
                             Direction::Backward => -1f64,
                         };
@@ -300,256 +321,109 @@ async fn train_master(
     let valid_train_id = (0..trains.len() as u32).collect();
     valid_id_tx.send(valid_train_id).unwrap();
 
-    let nodes = {
-        let nodes_vec 
-    }
-
-    let tracks = {
-        let tracks_vec = vec![
-            // 1
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(2000f64, 100f64),
-                    Coord(2200f64, 400f64),
-                    Coord(2900f64, 200f64),
-                    Coord(2800f64, 500f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            //2
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(2800f64, 500f64),
-                    Coord(2400f64, 300f64),
-                    Coord(2400f64, 550f64),
-                    Coord(2200f64, 550f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 3
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(2200f64, 550f64),
-                    Coord(2000f64, 550f64),
-                    Coord(2100f64, 450f64),
-                    Coord(1800f64, 350f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 4
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(1800f64, 350f64), Coord(1300f64, 400f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 5
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(1300f64, 400f64),
-                    Coord(1200f64, 550f64),
-                    Coord(1000f64, 400f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 6
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(1000f64, 400f64),
-                    Coord(650f64, 300f64),
-                    Coord(300f64, 400f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 7
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(300f64, 400f64),
-                    Coord(175f64, 550f64),
-                    Coord(-200f64, 550f64),
-                    Coord(-200f64, 300f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 8
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(-200f64, 300f64),
-                    Coord(-445f64, 500f64),
-                    Coord(-1175f64, 550f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 9
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(-1175f64, 550f64), Coord(-1500f64, 400f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 10
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(-1500f64, 400f64), Coord(-2150f64, 450f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 11
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(-2150f64, 450f64),
-                    Coord(-2600f64, 550f64),
-                    Coord(-2800f64, 100f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 12
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(-2800f64, 100f64), Coord(-2100f64, 100f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 13
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-2100f64, 100f64),
-                    Coord(-1900f64, 150f64),
-                    Coord(-2000f64, 300f64),
-                    Coord(-1800f64, 350f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 14
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-1800f64, 350f64),
-                    Coord(-1700f64, 350f64),
-                    Coord(-1700f64, 300f64),
-                    Coord(-1700f64, 100f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 15
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-1700f64, 100f64),
-                    Coord(-1500f64, 100f64),
-                    Coord(-1600f64, 300f64),
-                    Coord(-1200f64, 300f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 16
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-1200f64, 300f64),
-                    Coord(-1100f64, 300f64),
-                    Coord(-950f64, 200f64),
-                    Coord(-900f64, 100f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 17
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-900f64, 100f64),
-                    Coord(-800f64, 100f64),
-                    Coord(-700f64, 150f64),
-                    Coord(-400f64, 200f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 18
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(-400f64, 200f64),
-                    Coord(0f64, 200f64),
-                    Coord(0f64, 50f64),
-                    Coord(400f64, 200f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 19
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(400f64, 200f64), Coord(750f64, 200f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 20
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(750f64, 200f64),
-                    Coord(800f64, 300f64),
-                    Coord(900f64, 200f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 21
-            TrackPiece {
-                path: Bezier::Bezier4(
-                    Coord(900f64, 200f64),
-                    Coord(1100f64, 100f64),
-                    Coord(1100f64, 300f64),
-                    Coord(1300f64, 300f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 22
-            TrackPiece {
-                path: Bezier::Bezier2(Coord(1300f64, 300f64), Coord(1700f64, 200f64)),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
-            // 23
-            TrackPiece {
-                path: Bezier::Bezier3(
-                    Coord(1700f64, 200f64),
-                    Coord(1900f64, 250f64),
-                    Coord(2000f64, 100f64),
-                ),
-                color: "#66FFCC".into(),
-                thickness: 20f64,
-                length: 500f64,
-            },
+    let mut nodes: BTreeMap<NodeID, Node> = {
+        let node_coords = vec![
+            Coord(2000f64, 100f64),
+            Coord(2800f64, 500f64),
+            Coord(2200f64, 550f64),
+            Coord(1800f64, 350f64),
+            Coord(1300f64, 400f64),
+            Coord(1000f64, 400f64),
+            Coord(300f64, 400f64),
+            Coord(-200f64, 300f64),
+            Coord(-1175f64, 550f64),
+            Coord(-1500f64, 400f64),
+            Coord(-2150f64, 450f64),
+            Coord(-2800f64, 100f64),
+            Coord(-2100f64, 100f64),
+            Coord(-1800f64, 350f64),
+            Coord(-1700f64, 100f64),
+            Coord(-1200f64, 300f64),
+            Coord(-900f64, 100f64),
+            Coord(-400f64, 200f64),
+            Coord(400f64, 200f64),
+            Coord(750f64, 200f64),
+            Coord(900f64, 200f64),
+            Coord(1300f64, 300f64),
+            Coord(1700f64, 200f64),
+            Coord(2000f64, 100f64),
         ];
         let mut tracks = BTreeMap::new();
-        for (i, track) in tracks_vec.into_iter().enumerate() {
-            tracks.insert(i as u32, track);
+        for (id, coord) in node_coords.into_iter().enumerate() {
+            tracks.insert(
+                id as u32,
+                Node {
+                    id: id as u32,
+                    coord,
+                    connections: BTreeMap::new(),
+                },
+            );
+        }
+        tracks
+    };
+
+    let tracks = {
+        let tracks_diff = [
+            BezierDiff::ToBezier4(Coord(2200f64, 400f64), Coord(2900f64, 200f64)),
+            //2
+            BezierDiff::ToBezier4(Coord(2400f64, 300f64), Coord(2400f64, 550f64)),
+            // 3
+            BezierDiff::ToBezier4(Coord(2000f64, 550f64), Coord(2100f64, 450f64)),
+            // 4
+            BezierDiff::ToBezier2,
+            // 5
+            BezierDiff::ToBezier3(Coord(1200f64, 550f64)),
+            // 6
+            BezierDiff::ToBezier3(Coord(650f64, 300f64)),
+            // 7
+            BezierDiff::ToBezier4(Coord(175f64, 550f64), Coord(-200f64, 550f64)),
+            // 8
+            BezierDiff::ToBezier3(Coord(-445f64, 500f64)),
+            // 9
+            BezierDiff::ToBezier2,
+            // 10
+            BezierDiff::ToBezier2,
+            // 11
+            BezierDiff::ToBezier3(Coord(-2600f64, 550f64)),
+            // 12
+            BezierDiff::ToBezier2,
+            // 13
+            BezierDiff::ToBezier4(Coord(-1900f64, 150f64), Coord(-2000f64, 300f64)),
+            // 14
+            BezierDiff::ToBezier4(Coord(-1700f64, 350f64), Coord(-1700f64, 300f64)),
+            // 15
+            BezierDiff::ToBezier4(Coord(-1500f64, 100f64), Coord(-1600f64, 300f64)),
+            // 16
+            BezierDiff::ToBezier4(Coord(-1100f64, 300f64), Coord(-950f64, 200f64)),
+            // 17
+            BezierDiff::ToBezier4(Coord(-800f64, 100f64), Coord(-700f64, 150f64)),
+            // 18
+            BezierDiff::ToBezier4(Coord(0f64, 200f64), Coord(0f64, 50f64)),
+            // 19
+            BezierDiff::ToBezier2,
+            // 20
+            BezierDiff::ToBezier3(Coord(800f64, 300f64)),
+            // 21
+            BezierDiff::ToBezier4(Coord(1100f64, 100f64), Coord(1100f64, 300f64)),
+            // 22
+            BezierDiff::ToBezier2,
+            // 23
+            BezierDiff::ToBezier3(Coord(1900f64, 250f64)),
+        ];
+        let mut tracks = BTreeMap::new();
+        for (id, diff) in tracks_diff.into_iter().enumerate() {
+            tracks.insert(
+                id as u32,
+                TrackPiece::new(
+                    id as u32,
+                    id as u32,
+                    if id != 22 { id + 1 } else { 0 } as u32,
+                    &mut nodes,
+                    diff,
+                    "#6FC".into(),
+                    20f64,
+                ),
+            );
         }
         tracks
     };
