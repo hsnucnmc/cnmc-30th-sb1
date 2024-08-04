@@ -142,6 +142,12 @@ async fn train_master(
         connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
     }
 
+    impl Node {
+        fn to_packet(&self) -> ServerPacket {
+            ServerPacket::PacketNODE(self.id, self.coord)
+        }
+    }
+
     struct TrackPiece {
         id: TrackID,
         start: NodeID,
@@ -219,7 +225,8 @@ async fn train_master(
         fn move_with_time(
             &mut self,
             duration: Duration,
-            tracks: &BTreeMap<u32, TrackPiece>,
+            nodes: &BTreeMap<NodeID, Node>,
+            tracks: &BTreeMap<TrackID, TrackPiece>,
         ) -> bool {
             let train = self;
             let mut flag = false;
@@ -346,7 +353,6 @@ async fn train_master(
             Coord(900f64, 200f64),
             Coord(1300f64, 300f64),
             Coord(1700f64, 200f64),
-            Coord(2000f64, 100f64),
         ];
         let mut tracks = BTreeMap::new();
         for (id, coord) in node_coords.into_iter().enumerate() {
@@ -425,6 +431,27 @@ async fn train_master(
                 ),
             );
         }
+
+        tracks.insert(23, TrackPiece::new(
+            23,
+            0,
+            3,
+            &mut nodes,
+            BezierDiff::ToBezier2,
+            "#6CC".into(),
+            20f64,
+        ));
+
+        tracks.insert(24, TrackPiece::new(
+            24,
+            7,
+            17,
+            &mut nodes,
+            BezierDiff::ToBezier2,
+            "#6CC".into(),
+            20f64,
+        ));
+
         tracks
     };
 
@@ -449,7 +476,7 @@ async fn train_master(
             _ = wait => {
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    if train.move_with_time(wait_end - wait_start, &tracks) {
+                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
@@ -463,13 +490,13 @@ async fn train_master(
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
                     if i == clicked as usize {
-                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &tracks) {
+                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &nodes, &tracks) {
                             for (_, channel) in viewer_channels.iter() {
                                 channel.send(train.to_packet(i as u32, &tracks)).await;
                             }
                         }
                     } else
-                    if train.move_with_time(wait_end - wait_start, &tracks) {
+                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
@@ -483,13 +510,16 @@ async fn train_master(
                 let (notify_tx, notify_rx) = mpsc::channel(4);
 
                 response_tx.send((notify_rx, click_tx.clone())).unwrap();
+                for (_, node) in nodes.iter() {
+                    notify_tx.send(node.to_packet()).await.unwrap();
+                }
                 notify_tx.send(ServerPacket::PacketTRACK(tracks.iter().map(
                     |a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness)
                 ).collect())).await.unwrap();
 
                 let wait_end = tokio::time::Instant::now();
                 for (i, train) in trains.iter_mut().enumerate() {
-                    if train.move_with_time(wait_end - wait_start, &tracks) {
+                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
