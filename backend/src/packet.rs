@@ -156,7 +156,7 @@ pub enum RemovalType {
     Explosion,
     Silent,
     Derail,
-    Shake,
+    Vibrate,
     TakeOff,
 }
 
@@ -169,7 +169,7 @@ impl std::fmt::Display for RemovalType {
                 RemovalType::Explosion => "explosion",
                 RemovalType::Silent => "silent",
                 RemovalType::Derail => "derail",
-                RemovalType::Shake => "shake",
+                RemovalType::Vibrate => "vibrate",
                 RemovalType::TakeOff => "take_off",
             }
         )

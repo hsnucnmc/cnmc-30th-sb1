@@ -30,7 +30,7 @@
 <track_update>	::= "track\n" <track_count> ( "\n" <track_id> " " <bezier> " " <color> " " <thickness>)+
 <train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> " " <direction> "\n" <image_src>
 <node_update>	::= "node\n" <node_id> " " <coord>
-<removal_type>	::= "explosion" | "silent" | "derail" | "shake" | "take_off"
+<removal_type>	::= "explosion" | "silent" | "derail" | "vibrate" | "take_off"
 <train_remove>	::= "remove\n" <train_id> " " <removal_type>
 <server_packet>	::= <track_update> | <train_update> | <node_update> | <train_remove>
 
