@@ -213,7 +213,7 @@ impl std::fmt::Display for ServerPacket {
             }
 
             Self::PacketREMOVE(train_id, removal_type) => {
-                write!(f, "node\n{} {}", train_id, removal_type)
+                write!(f, "remove\n{} {}", train_id, removal_type)
             }
         }
     }
@@ -227,9 +227,9 @@ impl From<ServerPacket> for axum::extract::ws::Message {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ClickModifier {
-    ctrl: bool,
-    shift: bool,
-    alt: bool,
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
 }
 
 impl std::str::FromStr for ClickModifier {

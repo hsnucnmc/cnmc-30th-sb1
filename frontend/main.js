@@ -308,7 +308,7 @@ function redraw(time) {
         drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
 
-    
+
 
     main_context.fillStyle = "#BBB";
     main_context.font = "40px monospace";
@@ -340,7 +340,9 @@ function startSocket() {
         derail_img.remove();
         // socket.send("position\n" + left_bound + " " + right_bound);
         socket.onmessage = (msg) => {
-            // console.log(msg);
+            if (debugMode) {
+                console.log(msg);
+            }
             let msg_split = msg.data.split("\n");
             // * ! BLIND start here
             let row_count = 1;
