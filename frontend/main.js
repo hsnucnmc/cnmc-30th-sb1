@@ -282,29 +282,51 @@ function redraw(time) {
 
         switch (explosion.type) {
             case "e": // explosion
-            case "v": // vibration
             case "d": // derail
-                if (explosion.start - time > 5000) {
+                if (time - explosion.start > 5000) {
                     explosionList.delete(explosion_id);
                 }
                 break;
-            case "t":
-                let fly_distance = 250 * (Math.pow(Math.E, (time - explosion.start) / 600.0) - 1);
-                console.log(fly_distance);
-                if (fly_distance > 2000) {
-                    explosionList.delete(explosion_id);
+            case "v": // vibration
+                {
+                    if (time - explosion.start > 1000) {
+                        explosionList.delete(explosion_id);
+                    }
+                    let x = (time - explosion.start) / 333;
+                    let vibration_degree = 90 * Math.sin(20 / (x + 6 - 9.25) + 1) * (Math.pow(x,  0.5)/3);
+                    let deg = Math.atan2(explosion.dy, explosion.dx) * 180 / Math.PI;
+                    let un_normalized = JSON.parse(JSON.stringify(explosion.dxdy));
+                    un_normalized.dx *= explosion.train.direction;
+                    un_normalized.dy *= explosion.train.direction;
+                    let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
+                    let dx = un_normalized.dx / speed;
+                    let dy = un_normalized.dy / speed;
+                    
+                    let x_pos = explosion.x + dx * x * 50;
+                    let y_pos = explosion.y + dy * x * 50;
+
+                    drawRotatedImg(main_context, x_pos, y_pos, deg + vibration_degree, x_pos - train_width / 2, y_pos - train_height, explosion.train.img);
                 }
+                break;
+            case "t":
+                {
+                    let fly_distance = 250 * (Math.pow(Math.E, (time - explosion.start) / 600.0) - 1);
+                    console.log(fly_distance);
+                    if (fly_distance > 2000) {
+                        explosionList.delete(explosion_id);
+                    }
 
-                let deg = Math.atan2(explosion.dy, explosion.dx) * 180 / Math.PI;
-                let un_normalized = explosion.dxdy;
-                let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
-                let dx = un_normalized.dx / speed;
-                let dy = un_normalized.dy / speed;
+                    let deg = Math.atan2(explosion.dy, explosion.dx) * 180 / Math.PI;
+                    let un_normalized = explosion.dxdy;
+                    let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
+                    let dx = un_normalized.dx / speed;
+                    let dy = un_normalized.dy / speed;
 
-                let x_pos = explosion.x + dy * fly_distance;
-                let y_pos = explosion.y - dx * fly_distance;
+                    let x_pos = explosion.x + dy * fly_distance;
+                    let y_pos = explosion.y - dx * fly_distance;
 
-                drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, explosion.train.img);
+                    drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, explosion.train.img);
+                }
                 break;
         }
     });
