@@ -332,7 +332,7 @@ function startSocket() {
     socket.onerror = e => {
         main_canvas.hidden = true;
         document.getElementById("main-canvas").parentElement.append(derail_img);
-        window.setTimeout(startSocket, 2000);
+        window.setTimeout(startSocket, 500);
     };
 
     socket.onopen = (event) => {
@@ -391,7 +391,7 @@ function startSocket() {
                     nodelist.set(new_node.id, new_node);
                     break;
                 case "remove":
-                    args = msg_split[1].split("\n");
+                    args = msg_split[1].split(" ");
                     let new_explosion = {};
 
                     let removed_id = Number(args[0]);
@@ -417,7 +417,7 @@ function startSocket() {
         socket.onclose = msg => {
             main_canvas.hidden = true;
             document.getElementById("main-canvas").parentElement.append(derail_img);
-            window.setTimeout(startSocket, 2000);
+            window.setTimeout(startSocket, 500);
         };
     };
 }
