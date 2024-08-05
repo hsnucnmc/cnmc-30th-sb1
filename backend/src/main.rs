@@ -256,9 +256,12 @@ async fn train_master(
                             end_node
                         }
                     };
-                    let next_track = {
+                    let next_track = loop {
                         let nth = thread_rng().gen_range(0..end_node.connections.len());
-                        end_node.connections.iter().nth(nth).unwrap()
+                        let next_track = end_node.connections.iter().nth(nth).unwrap();
+                        if next_track.0 != &train.current_track {
+                            break next_track;
+                        }
                     };
                     
                     train.current_track = *next_track.0;
