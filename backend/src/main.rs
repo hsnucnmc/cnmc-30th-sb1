@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::future::IntoFuture;
 
 use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
+use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use train_backend::packet::*;
@@ -292,40 +294,48 @@ async fn train_master(
 
     println!("Server Started");
 
-    let mut trains = vec![
-        TrainInstance {
-            properties: TrainProperties {
-                speed: 500f64,
-                image_forward: "train_right_debug.png".into(),
-                image_backward: "train_left_debug.png".into(),
+    let mut trains = {
+        let train_vec = vec![
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 500f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 0,
+                progress: 0.0,
+                direction: Direction::Forward,
             },
-            current_track: 0,
-            progress: 0.0,
-            direction: Direction::Forward,
-        },
-        TrainInstance {
-            properties: TrainProperties {
-                speed: 250f64,
-                image_forward: "train_right_debug.png".into(),
-                image_backward: "train_left_debug.png".into(),
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 250f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 0,
+                progress: 0.0,
+                direction: Direction::Backward,
             },
-            current_track: 0,
-            progress: 0.0,
-            direction: Direction::Backward,
-        },
-        TrainInstance {
-            properties: TrainProperties {
-                speed: 250f64,
-                image_forward: "train2_right.png".into(),
-                image_backward: "train2_left.png".into(),
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 250f64,
+                    image_forward: "train2_right.png".into(),
+                    image_backward: "train2_left.png".into(),
+                },
+                current_track: 0,
+                progress: 0.0,
+                direction: Direction::Forward,
             },
-            current_track: 0,
-            progress: 0.0,
-            direction: Direction::Forward,
-        },
-    ];
+        ];
+        let mut trains = BTreeMap::<TrainID, TrainInstance>::new();
+        for (id, train) in train_vec.into_iter().enumerate() {
+            trains.insert(id as u32, train);
+        }
 
-    let valid_train_id = (0..trains.len() as u32).collect();
+        trains
+    };
+
+    let valid_train_id = trains.keys().cloned().collect();
     valid_id_tx.send(valid_train_id).unwrap();
 
     let mut nodes: BTreeMap<NodeID, Node> = {
@@ -432,25 +442,31 @@ async fn train_master(
             );
         }
 
-        tracks.insert(23, TrackPiece::new(
+        tracks.insert(
             23,
-            0,
-            3,
-            &mut nodes,
-            BezierDiff::ToBezier2,
-            "#6CC".into(),
-            20f64,
-        ));
+            TrackPiece::new(
+                23,
+                0,
+                3,
+                &mut nodes,
+                BezierDiff::ToBezier2,
+                "#6CC".into(),
+                20f64,
+            ),
+        );
 
-        tracks.insert(24, TrackPiece::new(
+        tracks.insert(
             24,
-            7,
-            17,
-            &mut nodes,
-            BezierDiff::ToBezier2,
-            "#6CC".into(),
-            20f64,
-        ));
+            TrackPiece::new(
+                24,
+                7,
+                17,
+                &mut nodes,
+                BezierDiff::ToBezier2,
+                "#6CC".into(),
+                20f64,
+            ),
+        );
 
         tracks
     };
@@ -464,7 +480,7 @@ async fn train_master(
 
         // calculate when will the next train reach the end of it's current track
         let wait_time = trains
-            .iter()
+            .values()
             .map(|train| train.estimated_time_left(&tracks))
             .min()
             .unwrap();
@@ -475,10 +491,10 @@ async fn train_master(
 
             _ = wait => {
                 let wait_end = tokio::time::Instant::now();
-                for (i, train) in trains.iter_mut().enumerate() {
+                for (i, train) in trains.iter_mut() {
                     if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(i as u32, &tracks)).await;
+                            channel.send(train.to_packet(*i, &tracks)).await;
                         }
                     }
                 }
@@ -488,16 +504,27 @@ async fn train_master(
                 println!("Train#{} is clicked, \n {:?}", clicked, modifier);
 
                 let wait_end = tokio::time::Instant::now();
-                for (i, train) in trains.iter_mut().enumerate() {
-                    if i == clicked as usize {
+
+                // having 0 trains causes problem in the current code
+                // we also don't have a way to add in trains yet
+                // let's just make that impossible for now
+                if modifier.ctrl && trains.len() != 1 {
+                    let _ = trains.remove(&clicked);
+                    for channel in viewer_channels.values() {
+                        channel.send(ServerPacket::PacketREMOVE(clicked, RemovalType::Silent)).await;
+                    }
+                }
+
+                for (&i, train) in trains.iter_mut() {
+                    if i == clicked && !modifier.ctrl{
                         if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &nodes, &tracks) {
                             for (_, channel) in viewer_channels.iter() {
-                                channel.send(train.to_packet(i as u32, &tracks)).await;
+                                channel.send(train.to_packet(i, &tracks)).await;
                             }
                         }
                     } else
                     if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for (_, channel) in viewer_channels.iter() {
+                        for channel in viewer_channels.values() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
                     }
@@ -518,10 +545,10 @@ async fn train_master(
                 ).collect())).await.unwrap();
 
                 let wait_end = tokio::time::Instant::now();
-                for (i, train) in trains.iter_mut().enumerate() {
+                for (&i, train) in trains.iter_mut() {
                     if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
                         for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(i as u32, &tracks)).await;
+                            channel.send(train.to_packet(i, &tracks)).await;
                         }
                     }
                     notify_tx.send(train.to_packet(i as u32, &tracks)).await;
@@ -540,39 +567,55 @@ async fn train_master(
 
 #[tokio::main]
 async fn main() {
-    let (view_request_tx, view_request_rx) = mpsc::channel(32);
+    loop {
+        let (view_request_tx, view_request_rx) = mpsc::channel(32);
 
-    let (valid_id_tx, valid_id_rx) = watch::channel(BTreeSet::new());
+        let (valid_id_tx, valid_id_rx) = watch::channel(BTreeSet::new());
 
-    let (derail_tx, derail_rx) = mpsc::channel(1);
+        let (derail_tx, derail_rx) = mpsc::channel(1);
 
-    tokio::spawn(async move { train_master(view_request_rx, valid_id_tx, derail_rx).await });
+        let tm_handle =
+            tokio::spawn(
+                async move { train_master(view_request_rx, valid_id_tx, derail_rx).await },
+            );
 
-    // build our application with a single route
+        // build our application with a single route
 
-    let shared_state = AppState {
-        view_request_tx,
-        valid_id: valid_id_rx,
-        derail_tx,
-    };
+        let shared_state = AppState {
+            view_request_tx,
+            valid_id: valid_id_rx,
+            derail_tx,
+        };
 
-    let assets_dir = std::path::PathBuf::from("../frontend/");
+        let assets_dir = std::path::PathBuf::from("../frontend/");
 
-    let app: Router = Router::new()
-        .fallback_service(axum::routing::get_service(
-            tower_http::services::ServeDir::new(assets_dir).append_index_html_on_directories(true),
-        ))
-        .route(
-            "/derailer",
-            axum::routing::get_service(tower_http::services::ServeFile::new(
-                "../frontend/derailer.html",
-            )),
-        )
-        .route("/ws", get(ws_get_handler))
-        .route("/force-derail", get(derail_handler))
-        .with_state(shared_state);
+        let app: Router = Router::new()
+            .fallback_service(axum::routing::get_service(
+                tower_http::services::ServeDir::new(assets_dir)
+                    .append_index_html_on_directories(true),
+            ))
+            .route(
+                "/derailer",
+                axum::routing::get_service(tower_http::services::ServeFile::new(
+                    "../frontend/derailer.html",
+                )),
+            )
+            .route("/ws", get(ws_get_handler))
+            .route("/force-derail", get(derail_handler))
+            .with_state(shared_state);
 
-    let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
-    let listener = tokio::net::TcpListener::bind(location).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+        let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
+        let listener = tokio::net::TcpListener::bind(location).await.unwrap();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(
+                async {
+                    let _ = tm_handle.await;
+                }
+                .into_future(),
+            )
+            .await
+            .unwrap();
+        println!("Axum Serve and Train Master had been shut down. Restarting in 3 secs...");
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
 }
