@@ -274,6 +274,41 @@ function redraw(time) {
     });
 
     trainposition = [];
+
+    explosionList.forEach((explosion, explosion_id) => {
+        if (Number.isNaN(explosion.start)) {
+            explosion.start = time;
+        }
+
+        switch (explosion.type) {
+            case "e": // explosion
+            case "v": // vibration
+            case "d": // derail
+                if (explosion.start - time > 5000) {
+                    explosionList.delete(explosion_id);
+                }
+                break;
+            case "t":
+                let fly_distance = 250 * (Math.pow(Math.E, (time - explosion.start) / 600.0) - 1);
+                console.log(fly_distance);
+                if (fly_distance > 2000) {
+                    explosionList.delete(explosion_id);
+                }
+
+                let deg = Math.atan2(explosion.dy, explosion.dx) * 180 / Math.PI;
+                let un_normalized = explosion.dxdy;
+                let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
+                let dx = un_normalized.dx / speed;
+                let dy = un_normalized.dy / speed;
+
+                let x_pos = explosion.x + dy * fly_distance;
+                let y_pos = explosion.y - dx * fly_distance;
+
+                drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, explosion.train.img);
+                break;
+        }
+    });
+
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
             if (train.direction == 1) {
@@ -336,6 +371,13 @@ function startSocket() {
     };
 
     socket.onopen = (event) => {
+        trainlist = new Map();
+        tracklist = new Map();
+        nodelist = new Map();
+        explosionSerial = 0;
+        explosionList = new Map();
+        trainposition = [];
+
         main_canvas.hidden = false;
         derail_img.remove();
         // socket.send("position\n" + left_bound + " " + right_bound);
@@ -400,15 +442,21 @@ function startSocket() {
 
                     trainlist.delete(removed_id);
 
-                    new_explosion.start = -1;
+                    new_explosion.start = NaN;
                     new_explosion.x = removed_train.x;
                     new_explosion.y = removed_train.y;
-                    new_explosion.dx = bezierDerivative(removed_train.cordlist, removed_train.current_t).dx;
-                    new_explosion.dy = bezierDerivative(removed_train.cordlist, removed_train.current_t).dy;
+                    let cordlist = tracklist.get(removed_train.track_id).cordlist;
+                    new_explosion.dxdy = bezierDerivative(cordlist, removed_train.current_t);
+                    new_explosion.dx = bezierDerivative(cordlist, removed_train.current_t).dx;
+                    new_explosion.dy = bezierDerivative(cordlist, removed_train.current_t).dy;
+                    new_explosion.cordlist = cordlist;
                     new_explosion.type = removal_type; // e s d v t
                     new_explosion.train = removed_train;
 
-                    explosionList.set(explosionSerial, new_explosion);
+                    // silent explosion require no further animation
+                    if (removal_type != "s") {
+                        explosionList.set(explosionSerial, new_explosion);
+                    }
                     explosionSerial++;
 
                     break;

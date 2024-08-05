@@ -521,7 +521,7 @@ async fn train_master(
                 if modifier.ctrl && trains.len() != 1 {
                     let _ = trains.remove(&clicked_id);
                     for channel in viewer_channels.values() {
-                        channel.send(ServerPacket::PacketREMOVE(clicked_id, RemovalType::Silent)).await;
+                        channel.send(ServerPacket::PacketREMOVE(clicked_id, RemovalType::TakeOff)).await;
                     }
                 }
 
