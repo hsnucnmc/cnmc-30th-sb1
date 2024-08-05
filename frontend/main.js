@@ -308,7 +308,7 @@ function redraw(time) {
                     drawRotatedImg(main_context, x_pos, y_pos, deg + vibration_degree, x_pos - train_width / 2, y_pos - train_height, explosion.train.img);
                 }
                 break;
-            case "t":
+            case "t": // take off
                 {
                     let fly_distance = 250 * (Math.pow(Math.E, (time - explosion.start) / 600.0) - 1);
                     console.log(fly_distance);

@@ -243,16 +243,25 @@ async fn train_master(
 
                 if required_distance <= move_distance {
                     move_distance -= required_distance;
-                    let end_node = 
-                    match train.direction {
+                    let end_node = match train.direction {
                         Direction::Forward => {
-                            let end_node = nodes.get(&tracks.get(&train.current_track).unwrap().end).unwrap();
-                            assert!(end_node.connections.get(&train.current_track).unwrap() == &Direction::Forward);
+                            let end_node = nodes
+                                .get(&tracks.get(&train.current_track).unwrap().end)
+                                .unwrap();
+                            assert!(
+                                end_node.connections.get(&train.current_track).unwrap()
+                                    == &Direction::Forward
+                            );
                             end_node
                         }
                         Direction::Backward => {
-                            let end_node = nodes.get(&tracks.get(&train.current_track).unwrap().start).unwrap();
-                            assert!(end_node.connections.get(&train.current_track).unwrap() == &Direction::Backward);
+                            let end_node = nodes
+                                .get(&tracks.get(&train.current_track).unwrap().start)
+                                .unwrap();
+                            assert!(
+                                end_node.connections.get(&train.current_track).unwrap()
+                                    == &Direction::Backward
+                            );
                             end_node
                         }
                     };
@@ -263,7 +272,7 @@ async fn train_master(
                             break next_track;
                         }
                     };
-                    
+
                     train.current_track = *next_track.0;
                     train.direction = !*next_track.1;
 
@@ -333,6 +342,66 @@ async fn train_master(
                     image_backward: "train2_left.png".into(),
                 },
                 current_track: 0,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 490f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 2,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 480f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 4,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 470f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 6,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 460f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 8,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 450f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 10,
+                progress: 0.0,
+                direction: Direction::Forward,
+            },
+            TrainInstance {
+                properties: TrainProperties {
+                    speed: 400f64,
+                    image_forward: "train_right_debug.png".into(),
+                    image_backward: "train_left_debug.png".into(),
+                },
+                current_track: 12,
                 progress: 0.0,
                 direction: Direction::Forward,
             },
@@ -519,9 +588,13 @@ async fn train_master(
                 // we also don't have a way to add in trains yet
                 // let's just make that impossible for now
                 if modifier.ctrl && trains.len() != 1 {
+                    use rand::prelude::SliceRandom;
+
                     let _ = trains.remove(&clicked_id);
+                    let removal_type = *{[RemovalType::Vibrate, RemovalType::TakeOff].choose(&mut thread_rng()).unwrap()};
+                    let packet = ServerPacket::PacketREMOVE(clicked_id, removal_type);
                     for channel in viewer_channels.values() {
-                        channel.send(ServerPacket::PacketREMOVE(clicked_id, RemovalType::Vibrate)).await;
+                        channel.send(packet.clone()).await;
                     }
                 }
 
