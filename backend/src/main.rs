@@ -4,6 +4,7 @@ use std::future::IntoFuture;
 use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
+use rand::{thread_rng, Rng};
 use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -242,20 +243,26 @@ async fn train_master(
 
                 if required_distance <= move_distance {
                     move_distance -= required_distance;
+                    let end_node = 
                     match train.direction {
                         Direction::Forward => {
-                            train.current_track += 1;
-                            if train.current_track >= tracks.len() as u32 {
-                                train.current_track = 0;
-                            }
+                            let end_node = nodes.get(&tracks.get(&train.current_track).unwrap().end).unwrap();
+                            assert!(end_node.connections.get(&train.current_track).unwrap() == &Direction::Forward);
+                            end_node
                         }
                         Direction::Backward => {
-                            if train.current_track == 0 {
-                                train.current_track = tracks.len() as u32;
-                            }
-                            train.current_track -= 1;
+                            let end_node = nodes.get(&tracks.get(&train.current_track).unwrap().start).unwrap();
+                            assert!(end_node.connections.get(&train.current_track).unwrap() == &Direction::Backward);
+                            end_node
                         }
-                    }
+                    };
+                    let next_track = {
+                        let nth = thread_rng().gen_range(0..end_node.connections.len());
+                        end_node.connections.iter().nth(nth).unwrap()
+                    };
+                    
+                    train.current_track = *next_track.0;
+                    train.direction = !*next_track.1;
 
                     train.progress = match train.direction {
                         Direction::Forward => 0f64,
