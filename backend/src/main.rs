@@ -268,6 +268,9 @@ async fn train_master(
                     let next_track = loop {
                         let nth = thread_rng().gen_range(0..end_node.connections.len());
                         let next_track = end_node.connections.iter().nth(nth).unwrap();
+                        if end_node.connections.len() == 1 {
+                            break next_track;
+                        }
                         if next_track.0 != &train.current_track {
                             break next_track;
                         }
@@ -542,6 +545,41 @@ async fn train_master(
                 17,
                 &mut nodes,
                 BezierDiff::ToBezier2,
+                "#6CC".into(),
+                20f64,
+            ),
+        );
+
+        nodes.insert(
+            23,
+            Node {
+                id: 23,
+                coord: Coord(2800f64, 100f64),
+                connections: BTreeMap::new(),
+            },
+        );
+
+        tracks.insert(
+            25,
+            TrackPiece::new(
+                25,
+                0,
+                23,
+                &mut nodes,
+                BezierDiff::ToBezier2,
+                "#C66".into(),
+                20f64,
+            ),
+        );
+
+        tracks.insert(
+            26,
+            TrackPiece::new(
+                26,
+                19,
+                20,
+                &mut nodes,
+                BezierDiff::ToBezier3(Coord(800f64, 100f64)),
                 "#6CC".into(),
                 20f64,
             ),
