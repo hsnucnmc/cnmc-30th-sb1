@@ -282,9 +282,47 @@ function redraw(time) {
 
         switch (explosion.type) {
             case "e": // explosion
-            case "d": // derail
                 if (time - explosion.start > 5000) {
                     explosionList.delete(explosion_id);
+                }
+                break;
+            case "d": // derail
+                {
+                    let train = explosion.train;
+                    if (Number.isNaN(train.movement_start)) {
+                        if (train.direction == 1) {
+                            train.movement_start = time - Number(train.start_t) * Number(train.duration);
+                        } else {
+                            train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
+                        }
+                    }
+
+                    let cordlist = tracklist.get(train.track_id).cordlist;
+                    let current_t = (time - train.movement_start) / train.duration;
+                    if (train.direction == -1) {
+                        current_t = 1 - current_t;
+                    }
+                    train.current_t = current_t;
+                    if (current_t > 1.5 || current_t < -0.5) {
+                        explosionList.delete(explosion_id);
+                        return;
+                    }
+                    if (current_t > 1) {
+                        current_t = (Math.log(5*current_t-4))/5+1;
+                    }
+
+                    if (current_t < 0) {
+                        current_t = -(Math.log(1-5*current_t))/5;
+                    }
+
+                    let point = bezierPoint(cordlist, current_t);
+                    let x_pos = point.x;
+                    let y_pos = point.y;
+                    train.x = x_pos;
+                    train.y = y_pos;
+                    let dresult = bezierDerivative(cordlist, current_t);
+                    let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI + current_t * (-22.5) * (train.direction + 1) + (1 - current_t) * (-22.5) * (train.direction - 1);
+                    drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
                 }
                 break;
             case "v": // vibration
@@ -293,7 +331,7 @@ function redraw(time) {
                         explosionList.delete(explosion_id);
                     }
                     let x = (time - explosion.start) / 333;
-                    let vibration_degree = 90 * Math.sin(20 / (x + 6 - 9.25) + 1) * (Math.pow(x,  0.5)/3);
+                    let vibration_degree = 90 * Math.sin(20 / (x + 6 - 9.25) + 1) * (Math.pow(x, 0.5) / 3);
                     let deg = Math.atan2(explosion.dy, explosion.dx) * 180 / Math.PI;
                     let un_normalized = JSON.parse(JSON.stringify(explosion.dxdy));
                     un_normalized.dx *= explosion.train.direction;
@@ -301,7 +339,7 @@ function redraw(time) {
                     let speed = Math.sqrt(Math.pow(un_normalized.dx, 2) + Math.pow(un_normalized.dy, 2));
                     let dx = un_normalized.dx / speed;
                     let dy = un_normalized.dy / speed;
-                    
+
                     let x_pos = explosion.x + dx * x * 50;
                     let y_pos = explosion.y + dy * x * 50;
 

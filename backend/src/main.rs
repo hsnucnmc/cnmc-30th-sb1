@@ -592,7 +592,7 @@ async fn train_master(
                     use rand::prelude::SliceRandom;
 
                     let _ = trains.remove(&clicked_id);
-                    let removal_type = *{[RemovalType::Vibrate, RemovalType::TakeOff].choose(&mut thread_rng()).unwrap()};
+                    let removal_type = *{[RemovalType::Vibrate, RemovalType::TakeOff,RemovalType::Derail].choose(&mut thread_rng()).unwrap()};
                     let packet = ServerPacket::PacketREMOVE(clicked_id, removal_type);
                     for channel in viewer_channels.values() {
                         channel.send(packet.clone()).await;
