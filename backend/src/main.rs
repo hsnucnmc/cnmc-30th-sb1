@@ -558,11 +558,15 @@ async fn train_master(
         let wait_start = tokio::time::Instant::now();
 
         // calculate when will the next train reach the end of it's current track
-        let wait_time = trains
-            .values()
-            .map(|train| train.estimated_time_left(&tracks))
-            .min()
-            .unwrap();
+        let wait_time = if !trains.is_empty() {
+            trains
+                .values()
+                .map(|train| train.estimated_time_left(&tracks))
+                .min()
+                .unwrap()
+        } else {
+            Duration::MAX
+        };
 
         let wait = tokio::time::sleep(wait_time);
         tokio::select! {
@@ -584,10 +588,7 @@ async fn train_master(
 
                 let wait_end = tokio::time::Instant::now();
 
-                // having 0 trains causes problem in the current code
-                // we also don't have a way to add in trains yet
-                // let's just make that impossible for now
-                if modifier.ctrl && trains.len() != 1 {
+                if modifier.ctrl {
                     use rand::prelude::SliceRandom;
 
                     let _ = trains.remove(&clicked_id);
