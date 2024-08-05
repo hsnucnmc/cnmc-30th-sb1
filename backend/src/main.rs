@@ -510,8 +510,8 @@ async fn train_master(
                 }
             }
             clicked = click_rx.recv() => {
-                let (clicked, modifier) = clicked.unwrap();
-                println!("Train#{} is clicked, \n {:?}", clicked, modifier);
+                let (clicked_id, modifier) = clicked.unwrap();
+                println!("Train#{} is clicked, \n {:?}", clicked_id, modifier);
 
                 let wait_end = tokio::time::Instant::now();
 
@@ -519,14 +519,14 @@ async fn train_master(
                 // we also don't have a way to add in trains yet
                 // let's just make that impossible for now
                 if modifier.ctrl && trains.len() != 1 {
-                    let _ = trains.remove(&clicked);
+                    let _ = trains.remove(&clicked_id);
                     for channel in viewer_channels.values() {
-                        channel.send(ServerPacket::PacketREMOVE(clicked, RemovalType::Silent)).await;
+                        channel.send(ServerPacket::PacketREMOVE(clicked_id, RemovalType::Silent)).await;
                     }
                 }
 
                 for (&i, train) in trains.iter_mut() {
-                    if i == clicked && !modifier.ctrl{
+                    if i == clicked_id && !modifier.ctrl && !modifier.shift{
                         if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &nodes, &tracks) {
                             for (_, channel) in viewer_channels.iter() {
                                 channel.send(train.to_packet(i, &tracks)).await;
@@ -537,6 +537,14 @@ async fn train_master(
                         for channel in viewer_channels.values() {
                             channel.send(train.to_packet(i as u32, &tracks)).await;
                         }
+                    }
+                }
+
+                if modifier.shift && !modifier.ctrl {
+                    let clicked = trains.get_mut(&clicked_id).unwrap();
+                    clicked.direction = !clicked.direction;
+                    for channel in viewer_channels.values() {
+                        channel.send(clicked.to_packet(clicked_id, &tracks)).await;
                     }
                 }
             }
