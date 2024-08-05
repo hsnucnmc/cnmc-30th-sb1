@@ -52,6 +52,8 @@ let run_time = 1000.0; //?ms
 let trainlist = new Map();
 let tracklist = new Map();
 let nodelist = new Map();
+let explosionSerial = 0;
+let explosionList = new Map();
 let trainposition = [];
 
 function drawRotatedImg(ctx, rotation_center_x, rotation_center_y, rotation_degree, object_x, object_y, img) {
@@ -286,12 +288,15 @@ function redraw(time) {
         if (train.direction == -1) {
             current_t = 1 - current_t;
         }
+        train.current_t = current_t;
         if (current_t > 1.1 || current_t < -0.1)
             return;
         let point = bezierPoint(cordlist, current_t);
         let x_pos = point.x;
         let y_pos = point.y;
         let trainpositionitem = {};
+        train.x = x_pos;
+        train.y = y_pos;
         trainpositionitem.id = id;
         trainpositionitem.x = x_pos;
         trainpositionitem.y = y_pos;
@@ -302,6 +307,8 @@ function redraw(time) {
         let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
         drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
+
+    
 
     main_context.fillStyle = "#BBB";
     main_context.font = "40px monospace";
@@ -354,6 +361,8 @@ function startSocket() {
                     new_train.img = new Image();
                     new_train.img.src = msg_split[2];
                     new_train.movement_start = NaN;
+                    new_train.x = NaN;
+                    new_train.y = NaN;
 
                     trainlist.set(Number(args[0]), new_train);
                     break;
@@ -378,6 +387,28 @@ function startSocket() {
                     new_node.x = Number(args[1].split(";")[0]);
                     new_node.y = Number(args[1].split(";")[1]);
                     nodelist.set(new_node.id, new_node);
+                    break;
+                case "remove":
+                    args = msg_split[1].split("\n");
+                    let new_explosion = {};
+
+                    let removed_id = Number(args[0]);
+                    let removal_type = args[1][0];
+                    let removed_train = trainlist.get(removed_id);
+
+                    trainlist.delete(removed_id);
+
+                    new_explosion.start = -1;
+                    new_explosion.x = removed_train.x;
+                    new_explosion.y = removed_train.y;
+                    new_explosion.dx = bezierDerivative(removed_train.cordlist, removed_train.current_t).dx;
+                    new_explosion.dy = bezierDerivative(removed_train.cordlist, removed_train.current_t).dy;
+                    new_explosion.type = removal_type; // e s d v t
+                    new_explosion.train = removed_train;
+
+                    explosionList.set(explosionSerial, new_explosion);
+                    explosionSerial++;
+
                     break;
             }
         };
