@@ -5,7 +5,6 @@ use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
 use rand::{thread_rng, Rng};
-use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use train_backend::packet::*;
@@ -728,6 +727,12 @@ async fn main() {
                 "/derailer",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
                     "../frontend/derailer.html",
+                )),
+            )
+            .route(
+                "/list",
+                axum::routing::get_service(tower_http::services::ServeFile::new(
+                    "../frontend/list.html",
                 )),
             )
             .route("/ws", get(ws_get_handler))
