@@ -125,42 +125,42 @@ function radiusOfCurvature(cordlist, current_t) {
 
 function redraw(time) {
     nodelist.forEach(node => {
-        main_context.beginPath();
-        main_context.arc(node.x, node.y, 20, 0, 2 * Math.PI);
-        main_context.fill();
+        // main_context.beginPath();
+        // main_context.arc(node.x, node.y, 20, 0, 2 * Math.PI);
+        // main_context.fill();
     });
 
     tracklist.forEach(track => {
-        drawTrack(main_context, track);
+        // drawTrack(main_context, track);
     });
 
     trainlist.forEach((train, id) => {
-        if (Number.isNaN(train.movement_start)) {
-            if (train.direction == 1) {
-                train.movement_start = time - Number(train.start_t) * Number(train.duration);
-            } else {
-                train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
-            }
-        }
+        // if (Number.isNaN(train.movement_start)) {
+        //     if (train.direction == 1) {
+        //         train.movement_start = time - Number(train.start_t) * Number(train.duration);
+        //     } else {
+        //         train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
+        //     }
+        // }
 
-        let cordlist = tracklist.get(train.track_id).cordlist;
-        let current_t = (time - train.movement_start) / train.duration;
-        if (train.direction == -1) {
-            current_t = 1 - current_t;
-        }
-        train.current_t = current_t;
-        if (current_t > 1.1 || current_t < -0.1)
-            return;
-        let point = bezierPoint(cordlist, current_t);
-        let x_pos = point.x;
-        let y_pos = point.y;
-        let trainpositionitem = {};
-        train.x = x_pos;
-        train.y = y_pos;
-        //! not handling out of bound problem
-        // now detrive
-        let dresult = bezierDerivative(cordlist, current_t);
-        let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
+        // let cordlist = tracklist.get(train.track_id).cordlist;
+        // let current_t = (time - train.movement_start) / train.duration;
+        // if (train.direction == -1) {
+        //     current_t = 1 - current_t;
+        // }
+        // train.current_t = current_t;
+        // if (current_t > 1.1 || current_t < -0.1)
+        //     return;
+        // let point = bezierPoint(cordlist, current_t);
+        // let x_pos = point.x;
+        // let y_pos = point.y;
+        // let trainpositionitem = {};
+        // train.x = x_pos;
+        // train.y = y_pos;
+        // //! not handling out of bound problem
+        // // now detrive
+        // let dresult = bezierDerivative(cordlist, current_t);
+        // let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
     });
 
     window.requestAnimationFrame(redraw);
@@ -169,14 +169,15 @@ function redraw(time) {
 window.requestAnimationFrame(redraw);
 
 let url = new URL(window.location.href);
-console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 let socket = null;
 function startSocket() {
-    socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+    socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 
 
     socket.onerror = _ => {
-        document.getElementById("status-container").parentElement.append(derail_img);
+        document.getElementById("status-container").innerText = "";
+        document.getElementById("status-container").append(derail_img);
         window.setTimeout(startSocket, 500);
     };
 
@@ -188,7 +189,8 @@ function startSocket() {
         explosionList = new Map();
         
         derail_img.remove();
-        // socket.send("position\n" + left_bound + " " + right_bound);
+        document.getElementById("status-container").innerText = "Connected! " + new Date();        ;
+
         socket.onmessage = (msg) => {
             if (debugMode) {
                 console.log(msg);
@@ -271,7 +273,8 @@ function startSocket() {
             }
         };
         socket.onclose = _ => {
-            document.getElementById("status-container").parentElement.append(derail_img);
+            document.getElementById("status-container").innerText = "";
+            document.getElementById("status-container").append(derail_img);
             window.setTimeout(startSocket, 500);
         };
     };
