@@ -147,14 +147,17 @@ function redraw(time) {
 
         let cordlist = tracklist.get(train.track_id).cordlist;
         let current_t = (time - train.movement_start) / train.duration;
-        train.html_row.children[5].children[0].value = current_t;
         if (train.direction == -1) {
             current_t = 1 - current_t;
         }
         train.current_t = current_t;
+        train.html_row.children[5].children[0].value = current_t;
 
-        if (current_t > 1.1 || current_t < -0.1)
+        if (current_t > 1.1 || current_t < -0.1) {
+            train.html_row.remove();
+            trainlist.delete(train.id);
             return;
+        }
 
         let point = bezierPoint(cordlist, current_t);
         let x_pos = point.x;
@@ -238,6 +241,15 @@ function startSocket() {
                         row_img_src.innerText = new_train.img.src;
                         let row_progress = document.createElement("progress");
                         row_progress.value = 0.0;
+                        let button_delete = document.createElement("button");
+                        let button_reverse = document.createElement("button");
+                        let button_copyid = document.createElement("button");
+                        let button_pos = document.createElement("button");
+
+                        button_delete.innerText = "DEL";
+                        button_reverse.innerText = "REV";
+                        button_copyid.innerText = "ID";
+                        button_pos.innerText = "POS";
 
                         new_row = trainHTMLTable.insertRow(-1);
                         new_row.insertCell(-1); // id
@@ -246,6 +258,11 @@ function startSocket() {
                         new_row.insertCell(-1).append(row_img_src); // image src
                         new_row.insertCell(-1); // position
                         new_row.insertCell(-1).append(row_progress); // progress
+                        let actions = new_row.insertCell(-1); // actions
+                        actions.append(button_delete);
+                        actions.append(button_reverse);
+                        actions.append(button_copyid);
+                        actions.append(button_pos);
                     }
 
                     let cells = new_row.children;
@@ -260,6 +277,19 @@ function startSocket() {
                     cells[3].children[0].innerText = new_train.img.src;
                     cells[4].innerText = "idk";
                     cells[5].children[0].value = 0.0;
+                    cells[6].children[0].onclick = _ => {
+                        socket.send("click\n" + new_train.id + " 1,0,0");
+                    };
+                    cells[6].children[1].onclick = _ => {
+                        socket.send("click\n" + new_train.id + " 0,1,0");
+                    };
+                    cells[6].children[2].onclick = _ => {
+                        navigator.clipboard.writeText(new_train.id);
+                    };
+                    cells[6].children[3].onclick = _ => {
+                        navigator.clipboard.writeText("(" + new_train.x.toFixed(1).padStart(6, "0")
+                            + "," + new_train.y.toFixed(1).padStart(6, "0") + ")");
+                    };
 
                     new_train.html_row = new_row;
 
@@ -295,6 +325,7 @@ function startSocket() {
                     let removal_type = args[1][0];
                     let removed_train = trainlist.get(removed_id);
 
+                    removed_train?.html_row?.remove();
                     trainlist.delete(removed_id);
 
                     new_explosion.start = NaN;
