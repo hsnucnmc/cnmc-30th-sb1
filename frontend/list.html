@@ -9,7 +9,9 @@
 </head>
 
 <body>
-    <p>Train List</p>
+    <div style="display: flex; flex-flow: row nowrap; align-content:center;">
+        <h2 style="margin-right: 100px;">Train List</h2><button onclick="fetch('/force-derail')">RESTART EVERYTHING</button>
+    </div>
     <table id="train-table">
         <colgroup span="10"></colgroup>
         <tr>
@@ -19,7 +21,7 @@
             <th>Image</th>
             <th>Position</th>
             <th>Progress</th>
-            <th>Actions</th> 
+            <th>Actions</th>
         </tr>
     </table>
     <div id="status-container"></div>
