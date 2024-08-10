@@ -4,6 +4,8 @@ let trainlist = new Map();
 let tracklist = new Map();
 let nodelist = new Map();
 
+let trainHTMLTable = document.getElementById("train-table");
+
 let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
@@ -204,6 +206,7 @@ function startSocket() {
                     // code block
                     args = msg_split[1].split(" ");
                     let new_train = {};
+                    new_train.id = Number(args[0]);
                     new_train.track_id = Number(args[1]);
                     new_train.start_t = Number(args[2]);
                     new_train.duration = Number(args[3]);
@@ -218,6 +221,23 @@ function startSocket() {
                     new_train.x = NaN;
                     new_train.y = NaN;
 
+                    let new_row = trainHTMLTable.insertRow(-1);
+                    new_row.insertCell(-1).innerText = Number(args[0]);
+                    new_row.insertCell(-1).innerText = new_train.track_id;
+                    if (args[4] == "forward") {
+                        new_row.insertCell(-1).innerText = "=>";
+                    } else {
+                        new_row.insertCell(-1).innerText = "<=";
+                    }
+                    let row_img_src = document.createElement("pre");
+                    row_img_src.innerText = new_train.img.src;
+                    new_row.insertCell(-1).append(row_img_src);
+                    new_row.insertCell(-1).innerText = "idk";
+                    let row_progress = document.createElement("progress");
+                    row_progress.value = 0.0;
+                    new_row.insertCell(-1).append(row_progress);
+                    train.html_row = new_row;
+                    
                     trainlist.set(Number(args[0]), new_train);
                     break;
                 case "track":
