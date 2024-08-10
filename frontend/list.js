@@ -189,9 +189,14 @@ function startSocket() {
         nodelist = new Map();
         explosionSerial = 0;
         explosionList = new Map();
-        
+
+
+        while (trainHTMLTable.rows.length > 1) {
+            trainHTMLTable.deleteRow(-1);
+        }
+
         derail_img.remove();
-        document.getElementById("status-container").innerText = "Connected! " + new Date();        ;
+        document.getElementById("status-container").innerText = "Connected! " + new Date();;
 
         socket.onmessage = (msg) => {
             if (debugMode) {
@@ -221,23 +226,37 @@ function startSocket() {
                     new_train.x = NaN;
                     new_train.y = NaN;
 
-                    let new_row = trainHTMLTable.insertRow(-1);
-                    new_row.insertCell(-1).innerText = Number(args[0]);
-                    new_row.insertCell(-1).innerText = new_train.track_id;
-                    if (args[4] == "forward") {
-                        new_row.insertCell(-1).innerText = "=>";
-                    } else {
-                        new_row.insertCell(-1).innerText = "<=";
+                    let new_row = trainlist.get(new_train.id)?.html_row;
+                    if (!new_row) {
+                        let row_img_src = document.createElement("pre");
+                        row_img_src.innerText = new_train.img.src;
+                        let row_progress = document.createElement("progress");
+                        row_progress.value = 0.0;
+
+                        new_row = trainHTMLTable.insertRow(-1);
+                        new_row.insertCell(-1); // id
+                        new_row.insertCell(-1); // track
+                        new_row.insertCell(-1); // direction
+                        new_row.insertCell(-1).append(row_img_src); // image src
+                        new_row.insertCell(-1); // position
+                        new_row.insertCell(-1).append(row_progress); // progress
                     }
-                    let row_img_src = document.createElement("pre");
-                    row_img_src.innerText = new_train.img.src;
-                    new_row.insertCell(-1).append(row_img_src);
-                    new_row.insertCell(-1).innerText = "idk";
-                    let row_progress = document.createElement("progress");
-                    row_progress.value = 0.0;
-                    new_row.insertCell(-1).append(row_progress);
-                    train.html_row = new_row;
-                    
+
+                    let cells = new_row.children;
+
+                    cells[0].innerText = Number(args[0]);
+                    cells[1].innerText = new_train.track_id;
+                    if (args[4] == "forward") {
+                        cells[2].innerText = "=>";
+                    } else {
+                        cells[2].innerText = "<=";
+                    }
+                    cells[3].children[0].innerText = new_train.img.src;
+                    cells[4].innerText = "idk";
+                    cells[5].children[0].value = 0.0;
+
+                    new_train.html_row = new_row;
+
                     trainlist.set(Number(args[0]), new_train);
                     break;
                 case "track":
