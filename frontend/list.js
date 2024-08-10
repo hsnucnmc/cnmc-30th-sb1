@@ -137,30 +137,35 @@ function redraw(time) {
     });
 
     trainlist.forEach((train, id) => {
-        // if (Number.isNaN(train.movement_start)) {
-        //     if (train.direction == 1) {
-        //         train.movement_start = time - Number(train.start_t) * Number(train.duration);
-        //     } else {
-        //         train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
-        //     }
-        // }
+        if (Number.isNaN(train.movement_start)) {
+            if (train.direction == 1) {
+                train.movement_start = time - Number(train.start_t) * Number(train.duration);
+            } else {
+                train.movement_start = time - (1 - Number(train.start_t)) * Number(train.duration);
+            }
+        }
 
-        // let cordlist = tracklist.get(train.track_id).cordlist;
-        // let current_t = (time - train.movement_start) / train.duration;
-        // if (train.direction == -1) {
-        //     current_t = 1 - current_t;
-        // }
-        // train.current_t = current_t;
-        // if (current_t > 1.1 || current_t < -0.1)
-        //     return;
-        // let point = bezierPoint(cordlist, current_t);
-        // let x_pos = point.x;
-        // let y_pos = point.y;
-        // let trainpositionitem = {};
-        // train.x = x_pos;
-        // train.y = y_pos;
-        // //! not handling out of bound problem
-        // // now detrive
+        let cordlist = tracklist.get(train.track_id).cordlist;
+        let current_t = (time - train.movement_start) / train.duration;
+        train.html_row.children[5].children[0].value = current_t;
+        if (train.direction == -1) {
+            current_t = 1 - current_t;
+        }
+        train.current_t = current_t;
+
+        if (current_t > 1.1 || current_t < -0.1)
+            return;
+
+        let point = bezierPoint(cordlist, current_t);
+        let x_pos = point.x;
+        let y_pos = point.y;
+        train.x = x_pos;
+        train.y = y_pos;
+        if (Number.isNaN(train.last_pos_time) || time - train.last_pos_time > 200) {
+            train.html_row.children[4].innerText = "(" + train.x.toFixed(1).padStart(6, "0")
+                + "," + train.y.toFixed(1).padStart(6, "0") + ")";
+            train.last_pos_time = time;
+        }
         // let dresult = bezierDerivative(cordlist, current_t);
         // let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
     });
@@ -223,6 +228,7 @@ function startSocket() {
                     new_train.img = new Image();
                     new_train.img.src = msg_split[2];
                     new_train.movement_start = NaN;
+                    new_train.last_pos_time = NaN;
                     new_train.x = NaN;
                     new_train.y = NaN;
 
