@@ -17,6 +17,7 @@ struct AppState {
             mpsc::Sender<(TrainID, ClickModifier)>,
         )>,
     >,
+    ctrl_request_tx: mpsc::Sender<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
     valid_id: watch::Receiver<BTreeSet<TrainID>>,
     derail_tx: mpsc::Sender<()>,
 }
@@ -26,6 +27,13 @@ async fn ws_get_handler(
     State(state): State<AppState>,
 ) -> axum::response::Response {
     ws.on_upgrade(|socket| ws_client_handler(socket, state))
+}
+
+async fn ctrl_get_handler(
+    ws: ws::WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> axum::response::Response {
+    ws.on_upgrade(|socket| ctrl_client_handler(socket, state))
 }
 
 async fn derail_handler(State(state): State<AppState>) {
@@ -128,6 +136,73 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
     return;
 }
 
+async fn ctrl_client_handler(mut socket: ws::WebSocket, state: AppState) {
+    println!("New control connection has established...");
+
+    let (subscribe_request_tx, subscribe_request_rx) = oneshot::channel();
+    match state.ctrl_request_tx.send(subscribe_request_tx).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed to request sending controling request, is train master dead?");
+            let _ = socket.send(ws::Message::Close(Option::None)).await;
+            return;
+        }
+    };
+
+    let ctrl_sender = match subscribe_request_rx.await {
+        Ok(rx) => rx,
+        Err(_) => {
+            println!("Failed to start sending control requests...");
+            let _ = socket.send(ws::Message::Close(Option::None)).await;
+            return;
+        }
+    };
+
+    loop {
+        let packet = socket.recv().await;
+        let packet = packet.unwrap();
+        let packet = match packet {
+            Err(_) => {
+                println!("A control connection produced a error (probably abruptly closed)...");
+                break;
+            }
+            Ok(ws::Message::Text(packet)) => packet,
+            Ok(ws::Message::Close(_)) => {
+                println!("A control connection sent a close packet...");
+                break;
+            }
+            Ok(_) => {
+                println!("A control connection sent a packet with an unexpected type...");
+                break;
+            }
+        };
+
+        let packet = match packet.parse::<CtrlPacket>() {
+            Err(err) => {
+                println!(
+                    "A control connection sent a packet but failed parsing:\n\t{}",
+                    err
+                );
+                break;
+            }
+            Ok(packet) => packet,
+        };
+
+        match ctrl_sender.send(packet).await {
+            Err(_) => {
+                println!(
+                    "A control connection sent a packet but failed relaying to train master..."
+                );
+                break;
+            }
+            Ok(_) => {}
+        };
+    }
+
+    let _ = socket.send(ws::Message::Close(Option::None)).await;
+    return;
+}
+
 async fn train_master(
     mut view_request_rx: mpsc::Receiver<
         oneshot::Sender<(
@@ -135,6 +210,7 @@ async fn train_master(
             mpsc::Sender<(TrainID, ClickModifier)>,
         )>,
     >,
+    mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
 ) {
@@ -590,6 +666,7 @@ async fn train_master(
     let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
     let mut next_viewer_serial = 0u32;
     let (click_tx, mut click_rx) = mpsc::channel::<(TrainID, ClickModifier)>(32);
+    let (ctrl_tx, mut ctrl_rx) = mpsc::channel::<CtrlPacket>(64);
 
     loop {
         let wait_start = tokio::time::Instant::now();
@@ -619,6 +696,7 @@ async fn train_master(
                     }
                 }
             }
+
             clicked = click_rx.recv() => {
                 let (clicked_id, modifier) = clicked.unwrap();
                 println!("Train#{} is clicked, \n {:?}", clicked_id, modifier);
@@ -660,6 +738,11 @@ async fn train_master(
                 }
             }
 
+            ctrl_packet = ctrl_rx.recv() => {
+                let ctrl_packet = ctrl_packet.unwrap();
+                // TODO: actually handle changes sent by the client
+            }
+
             request_result = view_request_rx.recv() => {
                 // received new view request
                 let response_tx = request_result.unwrap();
@@ -686,6 +769,21 @@ async fn train_master(
                 next_viewer_serial += 1;
             }
 
+            request_result = ctrl_request_rx.recv() => {
+                // received new view request
+                let response_tx = request_result.unwrap();
+                response_tx.send(ctrl_tx.clone()).unwrap();
+
+                let wait_end = tokio::time::Instant::now();
+                for (&i, train) in trains.iter_mut() {
+                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
+                        for (_, channel) in viewer_channels.iter() {
+                            channel.send(train.to_packet(i, &tracks)).await;
+                        }
+                    }
+                }
+            }
+
             _ = derail_rx.recv() => {
                 println!("RECEIVED DERAIL REQUEST!!!");
                 break;
@@ -699,20 +797,22 @@ async fn main() {
     loop {
         let (view_request_tx, view_request_rx) = mpsc::channel(32);
 
+        let (ctrl_request_tx, ctrl_request_rx) = mpsc::channel(32);
+
         let (valid_id_tx, valid_id_rx) = watch::channel(BTreeSet::new());
 
         let (derail_tx, derail_rx) = mpsc::channel(1);
 
-        let tm_handle =
-            tokio::spawn(
-                async move { train_master(view_request_rx, valid_id_tx, derail_rx).await },
-            );
+        let tm_handle = tokio::spawn(async move {
+            train_master(view_request_rx, ctrl_request_rx, valid_id_tx, derail_rx).await
+        });
 
         // build our application with a single route
 
         let shared_state = AppState {
             view_request_tx,
             valid_id: valid_id_rx,
+            ctrl_request_tx,
             derail_tx,
         };
 
@@ -736,6 +836,7 @@ async fn main() {
                 )),
             )
             .route("/ws", get(ws_get_handler))
+            .route("/ws-ctrl", get(ctrl_get_handler))
             .route("/force-derail", get(derail_handler))
             .with_state(shared_state);
 
