@@ -492,8 +492,10 @@ async fn train_master(
         trains
     };
 
-    let valid_train_id = trains.keys().cloned().collect();
-    valid_id_tx.send(valid_train_id).unwrap();
+    let mut next_train_serial = trains.len() as u32;
+
+    let mut valid_train_id: BTreeSet<_> = trains.keys().cloned().collect();
+    valid_id_tx.send(valid_train_id.clone()).unwrap();
 
     let mut nodes: BTreeMap<NodeID, Node> = {
         let node_coords = vec![
@@ -535,7 +537,7 @@ async fn train_master(
         tracks
     };
 
-    let tracks = {
+    let mut tracks = {
         let tracks_diff = [
             BezierDiff::ToBezier4(Coord(2200f64, 400f64), Coord(2900f64, 200f64)),
             //2
@@ -740,7 +742,88 @@ async fn train_master(
 
             ctrl_packet = ctrl_rx.recv() => {
                 let ctrl_packet = ctrl_packet.unwrap();
-                // TODO: actually handle changes sent by the client
+                match ctrl_packet {
+                    CtrlPacket::NewNode(_) => todo!(),
+                    CtrlPacket::NewTrain(track_id) => {
+                        let new_train = TrainInstance {
+                            properties: TrainProperties {
+                                speed: 500f64,
+                                image_forward: "train_right_debug.png".into(),
+                                image_backward: "train_left_debug.png".into(),
+                            },
+                            current_track: track_id,
+                            progress: 0.0,
+                            direction: Direction::Forward,
+                        };
+
+                        for channel in viewer_channels.values() {
+                            channel.send(new_train.to_packet(next_train_serial, &tracks)).await;
+                        }
+
+                        trains.insert(next_train_serial, new_train);
+                        valid_train_id.insert(next_train_serial);
+                        valid_id_tx.send(valid_train_id.clone()).unwrap();
+
+                        next_train_serial += 1;
+                    },
+                    CtrlPacket::NewTrack(_, _) => todo!(),
+                    CtrlPacket::NodeMove(node_id, coord) => {
+                        if let Some(node) = nodes.get_mut(&node_id) {
+                            node.coord = coord;
+                            for (id, &direction) in &node.connections {
+                                let track = tracks.get_mut(id).unwrap();
+                                match direction {
+                                    Direction::Forward => {
+                                        *track.path.end_mut() = coord;
+                                    }
+                                    Direction::Backward => {
+                                        *track.path.start_mut() = coord;
+                                    }
+                                }
+                                track.length = track.path.fast_length();
+                            }
+
+                            // TODO: The effects of adjusting tracks while there's train on them is ignored
+                            for channel in viewer_channels.values() {
+                                channel.send(node.to_packet()).await;
+                                channel
+                                    .send(ServerPacket::PacketTRACK(
+                                        tracks
+                                            .iter()
+                                            .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+                                            .collect(),
+                                    ))
+                                    .await;
+                        }
+                        }
+                    }
+                    CtrlPacket::TrackAdjust(track_id, diff) => {
+                        if let Some(track) = tracks.get_mut(&track_id) {
+                            track.path.apply_diff(diff);
+                            track.length = track.path.fast_length();
+                        }
+
+                        for channel in viewer_channels.values() {
+                            channel
+                                .send(ServerPacket::PacketTRACK(
+                                    tracks
+                                        .iter()
+                                        .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+                                        .collect(),
+                                ))
+                                .await;
+                        }
+                    }
+                }
+
+                let wait_end = tokio::time::Instant::now();
+                for (&i, train) in trains.iter_mut() {
+                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
+                        for (_, channel) in viewer_channels.iter() {
+                            channel.send(train.to_packet(i, &tracks)).await;
+                        }
+                    }
+                }
             }
 
             request_result = view_request_rx.recv() => {

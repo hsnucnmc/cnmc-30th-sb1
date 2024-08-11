@@ -109,6 +109,24 @@ impl Bezier {
     }
 
     #[inline]
+    pub fn start_mut(&mut self) -> &mut Coord {
+        match self {
+            Self::Bezier2(start, _) => start,
+            Self::Bezier3(start, _, _) => start,
+            Self::Bezier4(start, _, _, _) => start,
+        }
+    }
+
+    #[inline]
+    pub fn end_mut(&mut self) -> &mut Coord {
+        match self {
+            Self::Bezier2(_, end) => end,
+            Self::Bezier3(_, _, end) => end,
+            Self::Bezier4(_, _, _, end) => end,
+        }
+    }
+
+    #[inline]
     pub fn apply_diff(&mut self, diff: BezierDiff){
         let start = self.start().clone();
         let end = self.end().clone();
