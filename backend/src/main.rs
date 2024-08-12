@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
 use rand::{thread_rng, Rng};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
 use train_backend::packet::*;
@@ -117,7 +117,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                         socket.send(update.into()).await.unwrap();
                     }
                     None => {
-                        println!("Failed to subscribe to train updates");
+                        println!("Failed to receive train updates");
                         break;
                     }
                 }
@@ -878,6 +878,30 @@ async fn train_master(
             }
         }
     }
+
+    use std::io::Write;
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("WTF We're in the past")
+        .as_secs();
+    let _ = std::fs::create_dir("tracks");
+    std::fs::File::create(format!("tracks/nodes_{:011}.json", timestamp))
+        .unwrap()
+        .write_all(serde_json::to_string(&nodes).unwrap().as_bytes())
+        .unwrap();
+    std::fs::File::create(format!("tracks/track_{:011}.json", timestamp))
+        .unwrap()
+        .write_all(serde_json::to_string(&tracks).unwrap().as_bytes())
+        .unwrap();
+    let mut existing: BTreeSet<u64> =
+        serde_json::from_str(&std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()))
+            .unwrap();
+    existing.insert(timestamp);
+    std::fs::File::create("tracks/existing.json")
+        .unwrap()
+        .write_all(serde_json::to_string(&existing).unwrap().as_bytes())
+        .unwrap();
 }
 
 #[tokio::main]
