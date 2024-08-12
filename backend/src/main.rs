@@ -1,208 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::IntoFuture;
 
-use axum::extract::State;
-use axum::{extract::ws, routing::get, Router};
+use axum::{routing::get, Router};
 
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
-use train_backend::packet::*;
-
-#[derive(Clone)]
-struct AppState {
-    view_request_tx: mpsc::Sender<
-        oneshot::Sender<(
-            mpsc::Receiver<ServerPacket>,
-            mpsc::Sender<(TrainID, ClickModifier)>,
-        )>,
-    >,
-    ctrl_request_tx: mpsc::Sender<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
-    valid_id: watch::Receiver<BTreeSet<TrainID>>,
-    derail_tx: mpsc::Sender<()>,
-}
-
-async fn ws_get_handler(
-    ws: ws::WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> axum::response::Response {
-    ws.on_upgrade(|socket| ws_client_handler(socket, state))
-}
-
-async fn ctrl_get_handler(
-    ws: ws::WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> axum::response::Response {
-    ws.on_upgrade(|socket| ctrl_client_handler(socket, state))
-}
-
-async fn derail_handler(State(state): State<AppState>) {
-    let _ = state.derail_tx.send(()).await;
-}
-
-async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
-    println!("New websocket connection has established...");
-
-    let (subscribe_request_tx, substribe_request_rx) = oneshot::channel();
-    match state.view_request_tx.send(subscribe_request_tx).await {
-        Ok(_) => {}
-        Err(_) => {
-            println!("Failed to send update subscription, is train master dead?");
-            let _ = socket.send(ws::Message::Close(Option::None)).await;
-            return;
-        }
-    };
-
-    let (mut update_receiver, click_sender) = match substribe_request_rx.await {
-        Ok(rx) => rx,
-        Err(_) => {
-            println!("Failed to subscribe to train updates");
-            let _ = socket.send(ws::Message::Close(Option::None)).await;
-            return;
-        }
-    };
-
-    loop {
-        tokio::select! {
-            biased;
-
-            packet = socket.recv() => {
-                let packet = packet.unwrap();
-                let packet = match packet {
-                    Err(_) => {
-                        println!("A websocket connection produced a error (probably abruptly closed)...");
-                        break;
-                    }
-                    Ok(ws::Message::Text(packet)) => packet,
-                    Ok(ws::Message::Close(_)) => {
-                        println!("A websocket connection sent a close packet...");
-                        break;
-                    }
-                    Ok(_) => {
-                        println!("A websocket connection sent a packet with an unexpected type...");
-                        break;
-                    }
-                };
-
-                let packet = match packet.parse::<ClientPacket>() {
-                    Err(err) => {
-                        println!("A websocket connection sent a packet expected to be a CLICK but failed parsing:\n\t{}", err);
-                        break;
-                    }
-                    Ok(packet) => packet,
-                };
-
-                match packet {
-                    ClientPacket::PacketCLICK(train_id, modifier) => {
-                        if !state.valid_id.borrow().contains(&train_id) {
-                            println!("A websocket connection sent a packet expected to be a CLICK but contains invalid train id");
-                            break;
-                        } else {
-                            match click_sender.send((train_id, modifier)).await {
-                                Ok(_) => (),
-                                Err(_) => {
-                                    println!("Failed sending click updates to train master");
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            update = update_receiver.recv() => {
-                match update {
-                    Some(update) => {
-                        socket.send(update.into()).await.unwrap();
-                    }
-                    None => {
-                        println!("Failed to receive train updates");
-                        break;
-                    }
-                }
-
-            }
-        };
-    }
-
-    // this part SHOULD be optional after the problem is fixed
-    // for mut action_tx in bomb_actions {
-    // if let Some(action_tx) = action_tx.take() {
-    // action_tx.send(BombMoveAction::R1).unwrap();
-    // }
-    // }
-
-    let _ = socket.send(ws::Message::Close(Option::None)).await;
-    return;
-}
-
-async fn ctrl_client_handler(mut socket: ws::WebSocket, state: AppState) {
-    println!("New control connection has established...");
-
-    let (subscribe_request_tx, subscribe_request_rx) = oneshot::channel();
-    match state.ctrl_request_tx.send(subscribe_request_tx).await {
-        Ok(_) => {}
-        Err(_) => {
-            println!("Failed to request sending controling request, is train master dead?");
-            let _ = socket.send(ws::Message::Close(Option::None)).await;
-            return;
-        }
-    };
-
-    let ctrl_sender = match subscribe_request_rx.await {
-        Ok(rx) => rx,
-        Err(_) => {
-            println!("Failed to start sending control requests...");
-            let _ = socket.send(ws::Message::Close(Option::None)).await;
-            return;
-        }
-    };
-
-    loop {
-        let packet = socket.recv().await;
-        let packet = packet.unwrap();
-        let packet = match packet {
-            Err(_) => {
-                println!("A control connection produced a error (probably abruptly closed)...");
-                break;
-            }
-            Ok(ws::Message::Text(packet)) => packet,
-            Ok(ws::Message::Close(_)) => {
-                println!("A control connection sent a close packet...");
-                break;
-            }
-            Ok(_) => {
-                println!("A control connection sent a packet with an unexpected type...");
-                break;
-            }
-        };
-
-        let packet = match packet.parse::<CtrlPacket>() {
-            Err(err) => {
-                println!(
-                    "A control connection sent a packet but failed parsing:\n\t{}",
-                    err
-                );
-                break;
-            }
-            Ok(packet) => packet,
-        };
-
-        match ctrl_sender.send(packet).await {
-            Err(_) => {
-                println!(
-                    "A control connection sent a packet but failed relaying to train master..."
-                );
-                break;
-            }
-            Ok(_) => {}
-        };
-    }
-
-    let _ = socket.send(ws::Message::Close(Option::None)).await;
-    return;
-}
+use train_backend::{packet::*, handler, AppState};
 
 async fn train_master(
     mut view_request_rx: mpsc::Receiver<
@@ -947,9 +752,9 @@ async fn main() {
                     "../frontend/list.html",
                 )),
             )
-            .route("/ws", get(ws_get_handler))
-            .route("/ws-ctrl", get(ctrl_get_handler))
-            .route("/force-derail", get(derail_handler))
+            .route("/ws", get(handler::ws_get_handler))
+            .route("/ws-ctrl", get(handler::ctrl_get_handler))
+            .route("/force-derail", get(handler::derail_handler))
             .with_state(shared_state);
 
         let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
