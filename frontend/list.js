@@ -357,3 +357,9 @@ function startSocket() {
 }
 
 startSocket();
+
+document.getElementById("delete-all").onclick = () => {
+    trainlist.forEach(train => {
+        socket.send("click\n" + train.id + " 1,0,0");
+    })
+}
