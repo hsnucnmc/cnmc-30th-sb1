@@ -5,6 +5,7 @@ use axum::extract::State;
 use axum::{extract::ws, routing::get, Router};
 
 use rand::{thread_rng, Rng};
+use serde::{Serialize, Deserialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
 use train_backend::packet::*;
@@ -214,6 +215,7 @@ async fn train_master(
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
 ) {
+    #[derive(Serialize, Deserialize)]
     struct Node {
         id: NodeID,
         coord: Coord,
@@ -226,6 +228,7 @@ async fn train_master(
         }
     }
 
+    #[derive(Serialize, Deserialize)]
     struct TrackPiece {
         id: TrackID,
         start: NodeID,
@@ -275,12 +278,14 @@ async fn train_master(
         }
     }
 
+    #[derive(Serialize, Deserialize)]
     struct TrainProperties {
         speed: f64, // px/s
         image_forward: String,
         image_backward: String,
     }
 
+    #[derive(Serialize, Deserialize)]
     struct TrainInstance {
         properties: TrainProperties,
         current_track: u32,

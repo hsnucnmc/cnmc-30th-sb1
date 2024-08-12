@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub type ImageSrc = String;
 pub type TrainID = u32;
 pub type TrackID = u32;
@@ -7,7 +9,7 @@ pub type Thickness = f64;
 pub type StartT = f64;
 pub type Duration = tokio::time::Duration; // ms
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Coord(pub f64, pub f64); // ms
 
 impl std::fmt::Display for Coord {
@@ -44,7 +46,7 @@ impl std::str::FromStr for Coord {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
     Forward,
     Backward,
@@ -73,7 +75,7 @@ impl std::ops::Not for Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Bezier {
     Bezier2(Coord, Coord),
     Bezier3(Coord, Coord, Coord),
