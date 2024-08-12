@@ -696,9 +696,10 @@ pub async fn train_master(
         .unwrap()
         .write_all(serde_json::to_string(&tracks).unwrap().as_bytes())
         .unwrap();
-    let mut existing: BTreeSet<u64> =
-        serde_json::from_str(&std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()))
-            .unwrap();
+    let mut existing: BTreeSet<u64> = serde_json::from_str(
+        &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
+    )
+    .unwrap();
     existing.insert(timestamp);
     std::fs::File::create("tracks/existing.json")
         .unwrap()

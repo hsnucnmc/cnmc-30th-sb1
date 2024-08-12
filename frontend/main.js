@@ -308,11 +308,11 @@ function redraw(time) {
                         return;
                     }
                     if (current_t > 1) {
-                        current_t = (Math.log(5*current_t-4))/5+1;
+                        current_t = (Math.log(5 * current_t - 4)) / 5 + 1;
                     }
 
                     if (current_t < 0) {
-                        current_t = -(Math.log(1-5*current_t))/5;
+                        current_t = -(Math.log(1 - 5 * current_t)) / 5;
                     }
 
                     let point = bezierPoint(cordlist, current_t);

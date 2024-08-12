@@ -5,7 +5,7 @@ use axum::{routing::get, Router};
 
 use tokio::sync::{mpsc, watch};
 
-use train_backend::{packet::*, handler, AppState, train};
+use train_backend::{handler, packet::*, train, AppState};
 
 #[tokio::main]
 async fn main() {
