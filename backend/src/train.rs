@@ -1,12 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
-use std::fs::File;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
+use std::io::Write;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::packet::*;
-
 
 #[derive(Serialize, Deserialize)]
 struct Node {
@@ -158,8 +157,7 @@ impl TrainInstance {
                 };
                 flag = true;
             } else {
-                train.progress += move_distance
-                    / tracks.get(&train.current_track).unwrap().length
+                train.progress += move_distance / tracks.get(&train.current_track).unwrap().length
                     * match train.direction {
                         Direction::Forward => 1f64,
                         Direction::Backward => -1f64,
@@ -187,7 +185,25 @@ impl TrainInstance {
     }
 }
 
-fn default_stuff() -> (BTreeMap<NodeID, Node>, BTreeMap<TrackID, TrackPiece>, BTreeMap<TrainID, TrainInstance>) {
+fn default_stuff() -> (
+    BTreeMap<NodeID, Node>,
+    BTreeMap<TrackID, TrackPiece>,
+    BTreeMap<TrainID, TrainInstance>,
+) {
+    let mut nodes = BTreeMap::new();
+    nodes.insert(0, Node {
+        id: 0,
+        coord: Coord(0f64, 0f64),
+        connections: BTreeMap::new(),
+    });
+    (nodes, BTreeMap::new(), BTreeMap::new())
+}
+
+fn test_stuff() -> (
+    BTreeMap<NodeID, Node>,
+    BTreeMap<TrackID, TrackPiece>,
+    BTreeMap<TrainID, TrainInstance>,
+) {
     let trains = {
         let train_vec = vec![
             TrainInstance {
@@ -475,6 +491,8 @@ pub async fn train_master(
 
     let (mut nodes, mut tracks, mut trains) = default_stuff();
 
+    let mut next_node_serial = nodes.len() as u32;
+    let mut next_track_serial = tracks.len() as u32;
     let mut next_train_serial = trains.len() as u32;
 
     let mut valid_train_id: BTreeSet<_> = trains.keys().cloned().collect();
@@ -558,7 +576,21 @@ pub async fn train_master(
             ctrl_packet = ctrl_rx.recv() => {
                 let ctrl_packet = ctrl_packet.unwrap();
                 match ctrl_packet {
-                    CtrlPacket::NewNode(_) => todo!(),
+                    CtrlPacket::NewNode(coord) => {
+                        let new_node = Node {
+                            id: next_node_serial,
+                            coord,
+                            connections: BTreeMap::new()
+                        };
+
+                        for channel in viewer_channels.values() {
+                            channel.send(new_node.to_packet()).await;
+                        }
+
+                        nodes.insert(next_node_serial, new_node);
+
+                        next_node_serial += 1;
+                    },
                     CtrlPacket::NewTrain(track_id) => {
                         let new_train = TrainInstance {
                             properties: TrainProperties {
@@ -581,7 +613,33 @@ pub async fn train_master(
 
                         next_train_serial += 1;
                     },
-                    CtrlPacket::NewTrack(_, _) => todo!(),
+                    CtrlPacket::NewTrack(start, end) => {
+                        if nodes.contains_key(&start) && nodes.contains_key(&end) {
+                            let new_track = TrackPiece::new(
+                                next_track_serial,
+                                start,
+                                end,
+                                &mut nodes,
+                                BezierDiff::ToBezier2,
+                                "#CC6".into(),
+                                20f64,
+                            );
+
+                            tracks.insert(next_track_serial, new_track);
+
+                            let packet = ServerPacket::PacketTRACK(
+                                tracks
+                                    .iter()
+                                    .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+                                    .collect(),
+                            );
+                            for channel in viewer_channels.values() {
+                                channel.send(packet.clone()).await;
+                            }
+
+                            next_track_serial += 1;
+                        }
+                    },
                     CtrlPacket::NodeMove(node_id, coord) => {
                         if let Some(node) = nodes.get_mut(&node_id) {
                             node.coord = coord;
