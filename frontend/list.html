@@ -14,6 +14,23 @@
         <button id="delete-all">DELETE ALL TRAIN</button>
         <button onclick="fetch('/force-derail')">RESTART EVERYTHING</button>
     </div>
+    <table id="node-table">
+        <colgroup span="10"></colgroup>
+        <tr>
+            <th>NodeID</th>
+            <th colspan="2">Position</th>
+            <th>Actions</th>
+        </tr>
+    </table>
+    <table id="track-table">
+        <colgroup span="10"></colgroup>
+        <tr>
+            <th>Track</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Actions</th>
+        </tr>
+    </table>
     <table id="train-table">
         <colgroup span="10"></colgroup>
         <tr>
