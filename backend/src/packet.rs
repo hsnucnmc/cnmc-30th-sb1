@@ -152,6 +152,14 @@ impl Bezier {
             BezierDiff::ToBezier4(p1, p2) => Bezier::Bezier4(start, p1, p2, end),
         }
     }
+
+    pub fn get_diff(&self) -> BezierDiff {
+        match self {
+            &Self::Bezier2(_, _) => BezierDiff::ToBezier2,
+            &Self::Bezier3(_, p, _) => BezierDiff::ToBezier3(p),
+            &Self::Bezier4(_, p1, p2, _) => BezierDiff::ToBezier4(p1, p2),
+        }
+    }
 }
 
 impl std::fmt::Display for Bezier {
@@ -358,6 +366,16 @@ impl std::str::FromStr for BezierDiff {
     }
 }
 
+impl std::fmt::Display for BezierDiff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BezierDiff::ToBezier2 => write!(f, ""),
+            BezierDiff::ToBezier3(p) => write!(f, "{}", p),
+            BezierDiff::ToBezier4(p1, p2) => write!(f, "{},{}", p1, p2),
+        }
+    }
+}
+
 pub enum CtrlPacket {
     NewNode(Coord),
     NewTrain(TrackID),
@@ -438,6 +456,28 @@ impl std::str::FromStr for CtrlPacket {
                 Ok(CtrlPacket::TrackAdjust(id, diff))
             }
             _ => Err("Packet contained a unknown type identifier"),
+        }
+    }
+}
+
+impl std::fmt::Display for CtrlPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CtrlPacket::NewNode(coord) => {
+                write!(f, "node_new\n{}", coord)
+            }
+            CtrlPacket::NewTrain(track_id) => {
+                write!(f, "train_new\n{}", track_id)
+            }
+            CtrlPacket::NewTrack(start, end) => {
+                write!(f, "track_new\n{} {}", start, end)
+            }
+            CtrlPacket::NodeMove(node_id, coord) => {
+                write!(f, "node_move\n{} {}", node_id, coord)
+            }
+            CtrlPacket::TrackAdjust(track_id, diff) => {
+                write!(f, "track_adjust\n{} {}", track_id, diff)
+            }
         }
     }
 }
