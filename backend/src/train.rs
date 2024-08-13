@@ -1,204 +1,194 @@
 use std::collections::{BTreeMap, BTreeSet};
-
+use std::io::Write;
+use std::fs::File;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::packet::*;
 
-pub async fn train_master(
-    mut view_request_rx: mpsc::Receiver<
-        oneshot::Sender<(
-            mpsc::Receiver<ServerPacket>,
-            mpsc::Sender<(TrainID, ClickModifier)>,
-        )>,
-    >,
-    mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
-    valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
-    mut derail_rx: mpsc::Receiver<()>,
-) {
-    #[derive(Serialize, Deserialize)]
-    struct Node {
-        id: NodeID,
-        coord: Coord,
-        connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
-    }
 
-    impl Node {
-        fn to_packet(&self) -> ServerPacket {
-            ServerPacket::PacketNODE(self.id, self.coord)
-        }
-    }
+#[derive(Serialize, Deserialize)]
+struct Node {
+    id: NodeID,
+    coord: Coord,
+    connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+}
 
-    #[derive(Serialize, Deserialize)]
-    struct TrackPiece {
+impl Node {
+    fn to_packet(&self) -> ServerPacket {
+        ServerPacket::PacketNODE(self.id, self.coord)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct TrackPiece {
+    id: TrackID,
+    start: NodeID,
+    end: NodeID,
+    path: Bezier,         // px
+    color: Color,         // #FFFFFF
+    thickness: Thickness, // px
+    length: f64,          // px
+}
+
+impl TrackPiece {
+    fn new(
         id: TrackID,
-        start: NodeID,
-        end: NodeID,
-        path: Bezier,         // px
-        color: Color,         // #FFFFFF
-        thickness: Thickness, // px
-        length: f64,          // px
-    }
+        start_id: NodeID,
+        end_id: NodeID,
+        nodes: &mut BTreeMap<NodeID, Node>,
+        diff: BezierDiff,
+        color: Color,
+        thickness: Thickness,
+    ) -> TrackPiece {
+        nodes
+            .get_mut(&start_id)
+            .unwrap()
+            .connections
+            .insert(id, Direction::Backward);
+        nodes
+            .get_mut(&end_id)
+            .unwrap()
+            .connections
+            .insert(id, Direction::Forward);
 
-    impl TrackPiece {
-        fn new(
-            id: TrackID,
-            start_id: NodeID,
-            end_id: NodeID,
-            nodes: &mut BTreeMap<NodeID, Node>,
-            diff: BezierDiff,
-            color: Color,
-            thickness: Thickness,
-        ) -> TrackPiece {
-            nodes
-                .get_mut(&start_id)
-                .unwrap()
-                .connections
-                .insert(id, Direction::Backward);
-            nodes
-                .get_mut(&end_id)
-                .unwrap()
-                .connections
-                .insert(id, Direction::Forward);
+        let path = Bezier::new(
+            nodes.get(&start_id).unwrap().coord,
+            nodes.get(&end_id).unwrap().coord,
+            diff,
+        );
 
-            let path = Bezier::new(
-                nodes.get(&start_id).unwrap().coord,
-                nodes.get(&end_id).unwrap().coord,
-                diff,
-            );
-
-            TrackPiece {
-                id,
-                start: start_id,
-                end: end_id,
-                path,
-                color,
-                thickness,
-                length: path.fast_length(),
-            }
+        TrackPiece {
+            id,
+            start: start_id,
+            end: end_id,
+            path,
+            color,
+            thickness,
+            length: path.fast_length(),
         }
     }
+}
 
-    #[derive(Serialize, Deserialize)]
-    struct TrainProperties {
-        speed: f64, // px/s
-        image_forward: String,
-        image_backward: String,
+#[derive(Serialize, Deserialize)]
+struct TrainProperties {
+    speed: f64, // px/s
+    image_forward: String,
+    image_backward: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TrainInstance {
+    properties: TrainProperties,
+    current_track: u32,
+    progress: f64,        // 0 ~ 1
+    direction: Direction, // backward direction: progress goes from 1 to 0
+}
+
+impl TrainInstance {
+    fn estimated_time_left(&self, tracks: &BTreeMap<u32, TrackPiece>) -> Duration {
+        Duration::from_secs_f64(
+            match self.direction {
+                Direction::Forward => 1f64 - self.progress,
+                Direction::Backward => self.progress,
+            } * tracks.get(&self.current_track).unwrap().length
+                / self.properties.speed,
+        )
     }
 
-    #[derive(Serialize, Deserialize)]
-    struct TrainInstance {
-        properties: TrainProperties,
-        current_track: u32,
-        progress: f64,        // 0 ~ 1
-        direction: Direction, // backward direction: progress goes from 1 to 0
+    // update train after a ceratin duration of movement, return true when train has switched to another track
+    fn move_with_time(
+        &mut self,
+        duration: Duration,
+        nodes: &BTreeMap<NodeID, Node>,
+        tracks: &BTreeMap<TrackID, TrackPiece>,
+    ) -> bool {
+        let train = self;
+        let mut flag = false;
+        let mut move_distance = duration.as_secs_f64() * train.properties.speed;
+
+        loop {
+            let required_distance = match train.direction {
+                Direction::Forward => 1f64 - train.progress,
+                Direction::Backward => train.progress,
+            } * tracks.get(&train.current_track).unwrap().length;
+
+            if required_distance <= move_distance {
+                move_distance -= required_distance;
+                let end_node = match train.direction {
+                    Direction::Forward => {
+                        let end_node = nodes
+                            .get(&tracks.get(&train.current_track).unwrap().end)
+                            .unwrap();
+                        assert!(
+                            end_node.connections.get(&train.current_track).unwrap()
+                                == &Direction::Forward
+                        );
+                        end_node
+                    }
+                    Direction::Backward => {
+                        let end_node = nodes
+                            .get(&tracks.get(&train.current_track).unwrap().start)
+                            .unwrap();
+                        assert!(
+                            end_node.connections.get(&train.current_track).unwrap()
+                                == &Direction::Backward
+                        );
+                        end_node
+                    }
+                };
+                let next_track = loop {
+                    let nth = thread_rng().gen_range(0..end_node.connections.len());
+                    let next_track = end_node.connections.iter().nth(nth).unwrap();
+                    if end_node.connections.len() == 1 {
+                        break next_track;
+                    }
+                    if next_track.0 != &train.current_track {
+                        break next_track;
+                    }
+                };
+
+                train.current_track = *next_track.0;
+                train.direction = !*next_track.1;
+
+                train.progress = match train.direction {
+                    Direction::Forward => 0f64,
+                    Direction::Backward => 1f64,
+                };
+                flag = true;
+            } else {
+                train.progress += move_distance
+                    / tracks.get(&train.current_track).unwrap().length
+                    * match train.direction {
+                        Direction::Forward => 1f64,
+                        Direction::Backward => -1f64,
+                    };
+                break;
+            }
+        }
+        return flag;
     }
 
-    impl TrainInstance {
-        fn estimated_time_left(&self, tracks: &BTreeMap<u32, TrackPiece>) -> Duration {
+    fn to_packet(&self, id: u32, tracks: &BTreeMap<u32, TrackPiece>) -> ServerPacket {
+        ServerPacket::PacketTRAIN(
+            id,
+            self.current_track,
+            self.progress,
             Duration::from_secs_f64(
-                match self.direction {
-                    Direction::Forward => 1f64 - self.progress,
-                    Direction::Backward => self.progress,
-                } * tracks.get(&self.current_track).unwrap().length
-                    / self.properties.speed,
-            )
-        }
-
-        // update train after a ceratin duration of movement, return true when train has switched to another track
-        fn move_with_time(
-            &mut self,
-            duration: Duration,
-            nodes: &BTreeMap<NodeID, Node>,
-            tracks: &BTreeMap<TrackID, TrackPiece>,
-        ) -> bool {
-            let train = self;
-            let mut flag = false;
-            let mut move_distance = duration.as_secs_f64() * train.properties.speed;
-
-            loop {
-                let required_distance = match train.direction {
-                    Direction::Forward => 1f64 - train.progress,
-                    Direction::Backward => train.progress,
-                } * tracks.get(&train.current_track).unwrap().length;
-
-                if required_distance <= move_distance {
-                    move_distance -= required_distance;
-                    let end_node = match train.direction {
-                        Direction::Forward => {
-                            let end_node = nodes
-                                .get(&tracks.get(&train.current_track).unwrap().end)
-                                .unwrap();
-                            assert!(
-                                end_node.connections.get(&train.current_track).unwrap()
-                                    == &Direction::Forward
-                            );
-                            end_node
-                        }
-                        Direction::Backward => {
-                            let end_node = nodes
-                                .get(&tracks.get(&train.current_track).unwrap().start)
-                                .unwrap();
-                            assert!(
-                                end_node.connections.get(&train.current_track).unwrap()
-                                    == &Direction::Backward
-                            );
-                            end_node
-                        }
-                    };
-                    let next_track = loop {
-                        let nth = thread_rng().gen_range(0..end_node.connections.len());
-                        let next_track = end_node.connections.iter().nth(nth).unwrap();
-                        if end_node.connections.len() == 1 {
-                            break next_track;
-                        }
-                        if next_track.0 != &train.current_track {
-                            break next_track;
-                        }
-                    };
-
-                    train.current_track = *next_track.0;
-                    train.direction = !*next_track.1;
-
-                    train.progress = match train.direction {
-                        Direction::Forward => 0f64,
-                        Direction::Backward => 1f64,
-                    };
-                    flag = true;
-                } else {
-                    train.progress += move_distance
-                        / tracks.get(&train.current_track).unwrap().length
-                        * match train.direction {
-                            Direction::Forward => 1f64,
-                            Direction::Backward => -1f64,
-                        };
-                    break;
-                }
-            }
-            return flag;
-        }
-
-        fn to_packet(&self, id: u32, tracks: &BTreeMap<u32, TrackPiece>) -> ServerPacket {
-            ServerPacket::PacketTRAIN(
-                id,
-                self.current_track,
-                self.progress,
-                Duration::from_secs_f64(
-                    tracks.get(&self.current_track).unwrap().length / self.properties.speed,
-                ),
-                self.direction,
-                match self.direction {
-                    Direction::Forward => self.properties.image_forward.clone(),
-                    Direction::Backward => self.properties.image_backward.clone(),
-                },
-            )
-        }
+                tracks.get(&self.current_track).unwrap().length / self.properties.speed,
+            ),
+            self.direction,
+            match self.direction {
+                Direction::Forward => self.properties.image_forward.clone(),
+                Direction::Backward => self.properties.image_backward.clone(),
+            },
+        )
     }
+}
 
-    println!("Server Started");
-
-    let mut trains = {
+fn default_stuff() -> (BTreeMap<NodeID, Node>, BTreeMap<TrackID, TrackPiece>, BTreeMap<TrainID, TrainInstance>) {
+    let trains = {
         let train_vec = vec![
             TrainInstance {
                 properties: TrainProperties {
@@ -299,11 +289,6 @@ pub async fn train_master(
         trains
     };
 
-    let mut next_train_serial = trains.len() as u32;
-
-    let mut valid_train_id: BTreeSet<_> = trains.keys().cloned().collect();
-    valid_id_tx.send(valid_train_id.clone()).unwrap();
-
     let mut nodes: BTreeMap<NodeID, Node> = {
         let node_coords = vec![
             Coord(2000f64, 100f64),
@@ -344,7 +329,7 @@ pub async fn train_master(
         tracks
     };
 
-    let mut tracks = {
+    let tracks = {
         let tracks_diff = [
             BezierDiff::ToBezier4(Coord(2200f64, 400f64), Coord(2900f64, 200f64)),
             //2
@@ -471,6 +456,29 @@ pub async fn train_master(
 
         tracks
     };
+
+    (nodes, tracks, trains)
+}
+
+pub async fn train_master(
+    mut view_request_rx: mpsc::Receiver<
+        oneshot::Sender<(
+            mpsc::Receiver<ServerPacket>,
+            mpsc::Sender<(TrainID, ClickModifier)>,
+        )>,
+    >,
+    mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
+    valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
+    mut derail_rx: mpsc::Receiver<()>,
+) {
+    println!("Server Started");
+
+    let (mut nodes, mut tracks, mut trains) = default_stuff();
+
+    let mut next_train_serial = trains.len() as u32;
+
+    let mut valid_train_id: BTreeSet<_> = trains.keys().cloned().collect();
+    valid_id_tx.send(valid_train_id.clone()).unwrap();
 
     let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
     let mut next_viewer_serial = 0u32;
@@ -681,18 +689,16 @@ pub async fn train_master(
         }
     }
 
-    use std::io::Write;
-
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("WTF We're in the past")
         .as_secs();
     let _ = std::fs::create_dir("tracks");
-    std::fs::File::create(format!("tracks/nodes_{:011}.json", timestamp))
+    File::create(format!("tracks/nodes_{:011}.json", timestamp))
         .unwrap()
         .write_all(serde_json::to_string(&nodes).unwrap().as_bytes())
         .unwrap();
-    std::fs::File::create(format!("tracks/track_{:011}.json", timestamp))
+    File::create(format!("tracks/track_{:011}.json", timestamp))
         .unwrap()
         .write_all(serde_json::to_string(&tracks).unwrap().as_bytes())
         .unwrap();
@@ -701,7 +707,7 @@ pub async fn train_master(
     )
     .unwrap();
     existing.insert(timestamp);
-    std::fs::File::create("tracks/existing.json")
+    File::create("tracks/existing.json")
         .unwrap()
         .write_all(serde_json::to_string(&existing).unwrap().as_bytes())
         .unwrap();
