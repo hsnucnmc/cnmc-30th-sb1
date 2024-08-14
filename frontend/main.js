@@ -1,5 +1,3 @@
-let img = -1;
-let image_name = "train_right.png";
 const train_width = 350 / 4; // TODO: adjust with image size
 const train_height = 263 / 4;
 
@@ -46,9 +44,6 @@ let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
 
-let status = "nothing";
-let run_time = 1000.0; //?ms
-
 let trainlist = new Map();
 let tracklist = new Map();
 let nodelist = new Map();
@@ -70,13 +65,6 @@ function redraw(time) {
     main_context.save();
     main_context.translate(-relative_x, -relative_y);
 
-    if (img == -1) {//? default image
-        if (!image_name) image_name = "train_right.png";
-        img = new Image(); // Create new img element
-        img.src = image_name;
-    }
-
-    main_context.fillStyle = "#BBB";
     main_context.fillStyle = "#BBB";
     nodelist.forEach(node => {
         main_context.beginPath();
@@ -87,8 +75,6 @@ function redraw(time) {
     tracklist.forEach(track => {
         drawTrack(main_context, track);
     });
-
-    trainposition = [];
 
     explosionList.forEach((explosion, explosion_id) => {
         if (Number.isNaN(explosion.start)) {
@@ -184,6 +170,7 @@ function redraw(time) {
         }
     });
 
+    trainposition = [];
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
             if (train.direction == 1) {
@@ -211,13 +198,11 @@ function redraw(time) {
         trainpositionitem.x = x_pos;
         trainpositionitem.y = y_pos;
         trainposition.push(trainpositionitem);
-        //! not handling out of bound problem
-        // now detrive
+        // now take the derivative of track at the position of the train
         let dresult = bezierDerivative(cordlist, current_t);
         let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
         drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
     });
-
 
 
     main_context.fillStyle = "#BBB";
@@ -239,13 +224,13 @@ function startSocket() {
     socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 
 
-    socket.onerror = e => {
+    socket.onerror = _ => {
         main_canvas.hidden = true;
         document.getElementById("main-canvas").parentElement.append(derail_img);
         window.setTimeout(startSocket, 500);
     };
 
-    socket.onopen = (event) => {
+    socket.onopen = _ => {
         trainlist = new Map();
         tracklist = new Map();
         nodelist = new Map();
@@ -331,13 +316,13 @@ function startSocket() {
                     // silent explosion require no further animation
                     if (removal_type != "s") {
                         explosionList.set(explosionSerial, new_explosion);
+                        explosionSerial++;
                     }
-                    explosionSerial++;
-
                     break;
             }
         };
-        socket.onclose = msg => {
+
+        socket.onclose = _ => {
             main_canvas.hidden = true;
             document.getElementById("main-canvas").parentElement.append(derail_img);
             window.setTimeout(startSocket, 500);
