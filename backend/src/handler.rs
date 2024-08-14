@@ -1,4 +1,5 @@
-use crate::{packet::*, AppState};
+use crate::AppState;
+use packet::*;
 use axum::extract::{ws, State};
 use tokio::sync::oneshot;
 

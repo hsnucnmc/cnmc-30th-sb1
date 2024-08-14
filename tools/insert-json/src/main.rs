@@ -1,7 +1,6 @@
-use packet::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs::read_to_string};
-use ws_ctrl_test::packet;
+use packet::*;
 
 #[derive(Serialize, Deserialize)]
 struct Node {
@@ -94,11 +93,11 @@ fn main() {
     let timestamp: i32 = timestamp.trim().parse().unwrap_or(01723582454);
 
     let nodes: BTreeMap<u32, Node> = serde_json::from_str(
-        &read_to_string(format!("../../backend/tracks/nodes_{:011}.json", timestamp)).unwrap(),
+        &read_to_string(format!("tracks/nodes_{:011}.json", timestamp)).unwrap(),
     )
     .unwrap();
     let tracks: BTreeMap<u32, TrackPiece> = serde_json::from_str(
-        &read_to_string(format!("../../backend/tracks/track_{:011}.json", timestamp)).unwrap(),
+        &read_to_string(format!("tracks/track_{:011}.json", timestamp)).unwrap(),
     )
     .unwrap();
 

@@ -152,7 +152,7 @@ impl Bezier {
             BezierDiff::ToBezier4(p1, p2) => Bezier::Bezier4(start, p1, p2, end),
         }
     }
-    
+
     pub fn get_diff(&self) -> BezierDiff {
         match self {
             &Self::Bezier2(_, _) => BezierDiff::ToBezier2,
@@ -246,11 +246,11 @@ impl std::fmt::Display for ServerPacket {
     }
 }
 
-// impl From<ServerPacket> for axum::extract::ws::Message {
-//     fn from(packet: ServerPacket) -> Self {
-//         axum::extract::ws::Message::Text(packet.to_string())
-//     }
-// }
+impl From<ServerPacket> for axum::extract::ws::Message {
+    fn from(packet: ServerPacket) -> Self {
+        axum::extract::ws::Message::Text(packet.to_string())
+    }
+}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ClickModifier {
@@ -465,19 +465,19 @@ impl std::fmt::Display for CtrlPacket {
         match self {
             CtrlPacket::NewNode(coord) => {
                 write!(f, "node_new\n{}", coord)
-            },
+            }
             CtrlPacket::NewTrain(track_id) => {
                 write!(f, "train_new\n{}", track_id)
-            },
+            }
             CtrlPacket::NewTrack(start, end) => {
                 write!(f, "track_new\n{} {}", start, end)
-            },
+            }
             CtrlPacket::NodeMove(node_id, coord) => {
                 write!(f, "node_move\n{} {}", node_id, coord)
-            },
+            }
             CtrlPacket::TrackAdjust(track_id, diff) => {
                 write!(f, "track_adjust\n{} {}", track_id, diff)
-            },
+            }
         }
     }
 }

@@ -5,7 +5,8 @@ use axum::{routing::get, Router};
 
 use tokio::sync::{mpsc, watch};
 
-use train_backend::{handler, packet::*, train, AppState};
+use train_backend::{handler, train, AppState};
+use packet::*;
 
 #[tokio::main]
 async fn main() {
@@ -31,7 +32,7 @@ async fn main() {
             derail_tx,
         };
 
-        let assets_dir = std::path::PathBuf::from("../frontend/");
+        let assets_dir = std::path::PathBuf::from("frontend/");
 
         use tower_http::body::Full;
         let app: Router = Router::new()
@@ -43,19 +44,19 @@ async fn main() {
             .route(
                 "/derailer",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
-                    "../frontend/derailer.html",
+                    "frontend/derailer.html",
                 )),
             )
             .route(
                 "/list",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
-                    "../frontend/list.html",
+                    "frontend/list.html",
                 )),
             )
             .route(
                 "/control",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
-                    "../frontend/control.html",
+                    "frontend/control.html",
                 )),
             )
             .route("/ws", get(handler::ws_get_handler))

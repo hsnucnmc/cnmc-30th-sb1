@@ -1,0 +1,10 @@
+[workspace]
+
+members = [
+    "backend",
+    "packet",
+    "tools/*",
+]
+
+resolver = "2"
+default-members = ["backend", "packet"]

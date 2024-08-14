@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Write;
 use tokio::sync::{mpsc, oneshot, watch};
 
-use crate::packet::*;
+use packet::*;
 
 #[derive(Serialize, Deserialize)]
 struct Node {
