@@ -376,10 +376,46 @@ impl std::fmt::Display for BezierDiff {
     }
 }
 
+type TrainSpeed = f64;
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum NodeType {
+    Random,
+    RoundRobin,
+    Reverse,
+}
+
+impl std::str::FromStr for NodeType {
+    type Err = &'static str;
+
+    fn from_str(input: &str) -> Result<NodeType, Self::Err> {
+        Ok(match input {
+            "random" => Self::Random,
+            "roundrobin" => Self::RoundRobin,
+            "reverse" => Self::Reverse,
+            _ => return Err("Packet contain an unknown node_type"),
+        })
+    }
+}
+
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Random => "random",
+                Self::RoundRobin => "roundrobin",
+                Self::Reverse => "reverse",
+            }
+        )
+    }
+}
+
 pub enum CtrlPacket {
-    NewNode(Coord),
-    NewTrain(TrackID),
-    NewTrack(NodeID, NodeID),
+    NewNode(Coord, NodeType),
+    NewTrain(TrackID, TrainSpeed),
+    NewTrack(NodeID, NodeID, Color),
     NodeMove(NodeID, Coord),
     TrackAdjust(TrackID, BezierDiff),
 }
@@ -396,30 +432,58 @@ impl std::str::FromStr for CtrlPacket {
 
         match split[0] {
             // TODO: check for valid node, train and track ids
-            "node_new" => match split[1].parse() {
-                Ok(coord) => return Ok(CtrlPacket::NewNode(coord)),
-                Err(_) => return Err("Packet NewNode contains a bad coordinate"),
-            },
-            "train_new" => match split[1].parse() {
-                Ok(track_id) => return Ok(CtrlPacket::NewTrain(track_id)),
-                Err(_) => return Err("Packet NewTrain contains a bad track_id"),
-            },
-            "track_new" => {
+            "node_new" => {
                 if split[1].split(" ").count() != 2 {
+                    return Err("Packet NewNode has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let coord = match split_2[0].parse() {
+                    Ok(coord) => coord,
+                    Err(_) => return Err("Packet NewNode contains a bad coordinate"),
+                };
+                
+                let node_type = match split_2[1].parse() {
+                    Ok(node_type) => node_type,
+                    Err(_) => return Err("Packet NewNode contains a bad node_type"),
+                };
+                
+                Ok(CtrlPacket::NewNode(coord, node_type))
+            }
+            "train_new" => {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet NewTrain has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let track_id = match split_2[0].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet NewTrain contains a bad track_id"),
+                };
+                let train_speed = match split_2[1].parse() {
+                    Ok(train_speed) => train_speed,
+                    Err(_) => return Err("Packet NewTrain contains a bad train_speed"),
+                };
+
+                Ok(CtrlPacket::NewTrain(track_id, train_speed))
+            }
+            "track_new" => {
+                if split[1].split(" ").count() != 3 {
                     return Err("Packet NewTrack has unexpected amount of whitespaces");
                 }
 
                 let split_2: Vec<_> = split[1].split(" ").collect();
                 let id1 = match split_2[0].parse() {
                     Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad node 1 id"),
+                    Err(_) => return Err("Packet NewTrack contains a bad node 1 id"),
                 };
                 let id2 = match split_2[1].parse() {
                     Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad node 2 id"),
+                    Err(_) => return Err("Packet NewTrack contains a bad node 2 id"),
                 };
+                let color = split_2[2].to_string();
 
-                Ok(CtrlPacket::NewTrack(id1, id2))
+                Ok(CtrlPacket::NewTrack(id1, id2, color))
             }
             "node_move" => {
                 if split[1].split(" ").count() != 2 {
@@ -429,11 +493,11 @@ impl std::str::FromStr for CtrlPacket {
                 let split_2: Vec<_> = split[1].split(" ").collect();
                 let id = match split_2[0].parse() {
                     Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad node id"),
+                    Err(_) => return Err("Packet NodeMove contains a bad node id"),
                 };
                 let coord = match split_2[1].parse() {
                     Ok(coord) => coord,
-                    Err(_) => return Err("Packet contains a bad coordinate"),
+                    Err(_) => return Err("Packet NodeMove contains a bad coordinate"),
                 };
 
                 Ok(CtrlPacket::NodeMove(id, coord))
@@ -446,11 +510,11 @@ impl std::str::FromStr for CtrlPacket {
                 let split_2: Vec<_> = split[1].split(" ").collect();
                 let id = match split_2[0].parse() {
                     Ok(id) => id,
-                    Err(_) => return Err("Packet contains a bad track id"),
+                    Err(_) => return Err("Packet TrackAdjust contains a bad track id"),
                 };
                 let diff = match split_2[1].parse() {
                     Ok(diff) => diff,
-                    Err(_) => return Err("Packet contains a bad track adjustment"),
+                    Err(_) => return Err("Packet TrackAdjust contains a bad track adjustment"),
                 };
 
                 Ok(CtrlPacket::TrackAdjust(id, diff))
@@ -463,14 +527,14 @@ impl std::str::FromStr for CtrlPacket {
 impl std::fmt::Display for CtrlPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CtrlPacket::NewNode(coord) => {
-                write!(f, "node_new\n{}", coord)
+            CtrlPacket::NewNode(coord, node_type) => {
+                write!(f, "node_new\n{} {}", coord, node_type)
             }
-            CtrlPacket::NewTrain(track_id) => {
-                write!(f, "train_new\n{}", track_id)
+            CtrlPacket::NewTrain(track_id, train_speed) => {
+                write!(f, "train_new\n{} {}", track_id, train_speed)
             }
-            CtrlPacket::NewTrack(start, end) => {
-                write!(f, "track_new\n{} {}", start, end)
+            CtrlPacket::NewTrack(start, end, color) => {
+                write!(f, "track_new\n{} {} {}", start, end, color)
             }
             CtrlPacket::NodeMove(node_id, coord) => {
                 write!(f, "node_move\n{} {}", node_id, coord)
