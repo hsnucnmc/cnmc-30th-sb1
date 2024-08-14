@@ -354,3 +354,33 @@ window.addEventListener("mousemove", event => {
         document.cookie = "relative_y=" + relative_y;
     }
 });
+
+
+let current_touches = new Map();
+
+// make window draggable on mobile devices
+window.addEventListener("touchstart", e => {
+    if (!dragMode)
+        return;
+    for (touch of e.targetTouches) {
+        current_touches.set(touch.identifier, {x: touch.screenX, y: touch.screenY});
+    }
+});
+
+window.addEventListener("touchmove", e => {
+    for (touch of e.targetTouches) {
+        let previous = current_touches.get(touch.identifier);
+        let current = {x: touch.screenX, y: touch.screenY};
+        current_touches.set(touch.identifier, current);
+        relative_x -= current.x - previous.x;
+        relative_y -= current.y - previous.y;
+        document.cookie = "relative_x=" + relative_x;
+        document.cookie = "relative_y=" + relative_y;
+    }
+});
+
+window.addEventListener("touchend", e => {
+    for (touch of e.targetTouches) {
+        current_touches.delete(touch.identifier);
+    }
+});
