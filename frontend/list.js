@@ -213,7 +213,7 @@ function startSocket() {
                         cells[1].innerText = "(" + cordlist[0] + "," + cordlist[1] + ")";
                         cells[2].innerText = "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
                         cells[3].children[0].onclick = () => {
-                            ctrl_socket.send("train_new\n" + new_track.id + " 500");
+                            ctrl_socket.send("train_new\n" + new_track.id + " " + (Math.random() * 200 + 400));
                         };
 
                         new_track.html_row = new_row;
