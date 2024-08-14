@@ -33,10 +33,12 @@ async fn main() {
 
         let assets_dir = std::path::PathBuf::from("../frontend/");
 
+        use tower_http::body::Full;
         let app: Router = Router::new()
             .fallback_service(axum::routing::get_service(
                 tower_http::services::ServeDir::new(assets_dir)
-                    .append_index_html_on_directories(true),
+                    .append_index_html_on_directories(true)
+                    .fallback(tower_http::services::redirect::Redirect::<Full>::temporary("/".parse().unwrap())),
             ))
             .route(
                 "/derailer",
@@ -48,6 +50,12 @@ async fn main() {
                 "/list",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
                     "../frontend/list.html",
+                )),
+            )
+            .route(
+                "/control",
+                axum::routing::get_service(tower_http::services::ServeFile::new(
+                    "../frontend/control.html",
                 )),
             )
             .route("/ws", get(handler::ws_get_handler))

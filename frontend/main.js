@@ -233,10 +233,10 @@ function redraw(time) {
 window.requestAnimationFrame(redraw);
 
 let url = new URL(window.location.href);
-console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 let socket = null;
 function startSocket() {
-    socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + url.pathname + "ws");
+    socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 
 
     socket.onerror = e => {
