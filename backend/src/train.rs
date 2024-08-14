@@ -12,11 +12,36 @@ struct Node {
     id: NodeID,
     coord: Coord,
     connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+    conn_type: NodeType,
 }
 
 impl Node {
     fn to_packet(&self) -> ServerPacket {
         ServerPacket::PacketNODE(self.id, self.coord)
+    }
+
+    fn next_track(&self, current_track: TrackID) -> (TrackID, Direction) {
+        (|a: (&u32, &Direction)| (*a.0, !*a.1))(match self.conn_type {
+            NodeType::Random => loop {
+                let nth = thread_rng().gen_range(0..self.connections.len());
+                let next_track = self.connections.iter().nth(nth).unwrap();
+                if self.connections.len() == 1 {
+                    break next_track;
+                }
+                if next_track.0 != &current_track {
+                    break next_track;
+                }
+            },
+            NodeType::RoundRobin => self
+                .connections
+                .range(current_track + 1..=TrackID::MAX)
+                .next()
+                .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap()),
+            NodeType::Reverse => (
+                &current_track,
+                self.connections.get(&current_track).unwrap(),
+            ),
+        })
     }
 }
 
@@ -137,19 +162,10 @@ impl TrainInstance {
                         end_node
                     }
                 };
-                let next_track = loop {
-                    let nth = thread_rng().gen_range(0..end_node.connections.len());
-                    let next_track = end_node.connections.iter().nth(nth).unwrap();
-                    if end_node.connections.len() == 1 {
-                        break next_track;
-                    }
-                    if next_track.0 != &train.current_track {
-                        break next_track;
-                    }
-                };
+                let next_track = end_node.next_track(train.current_track);
 
-                train.current_track = *next_track.0;
-                train.direction = !*next_track.1;
+                train.current_track = next_track.0;
+                train.direction = next_track.1;
 
                 train.progress = match train.direction {
                     Direction::Forward => 0f64,
@@ -191,11 +207,15 @@ fn default_stuff() -> (
     BTreeMap<TrainID, TrainInstance>,
 ) {
     let mut nodes = BTreeMap::new();
-    nodes.insert(0, Node {
-        id: 0,
-        coord: Coord(0f64, 0f64),
-        connections: BTreeMap::new(),
-    });
+    // nodes.insert(
+    //     0,
+    //     Node {
+    //         id: 0,
+    //         coord: Coord(0f64, 0f64),
+    //         connections: BTreeMap::new(),
+    //         conn_type: NodeType::Random,
+    //     },
+    // );
     (nodes, BTreeMap::new(), BTreeMap::new())
 }
 
@@ -339,6 +359,7 @@ fn test_stuff() -> (
                     id: id as u32,
                     coord,
                     connections: BTreeMap::new(),
+                    conn_type: NodeType::Random,
                 },
             );
         }
@@ -441,6 +462,7 @@ fn test_stuff() -> (
                 id: 23,
                 coord: Coord(2800f64, 100f64),
                 connections: BTreeMap::new(),
+                conn_type: NodeType::Random,
             },
         );
 
@@ -576,11 +598,12 @@ pub async fn train_master(
             ctrl_packet = ctrl_rx.recv() => {
                 let ctrl_packet = ctrl_packet.unwrap();
                 match ctrl_packet {
-                    CtrlPacket::NewNode(coord) => {
+                    CtrlPacket::NewNode(coord, conn_type) => {
                         let new_node = Node {
                             id: next_node_serial,
                             coord,
-                            connections: BTreeMap::new()
+                            connections: BTreeMap::new(),
+                            conn_type
                         };
 
                         for channel in viewer_channels.values() {
@@ -591,10 +614,10 @@ pub async fn train_master(
 
                         next_node_serial += 1;
                     },
-                    CtrlPacket::NewTrain(track_id) => {
+                    CtrlPacket::NewTrain(track_id, train_speed) => {
                         let new_train = TrainInstance {
                             properties: TrainProperties {
-                                speed: 500f64,
+                                speed: train_speed,
                                 image_forward: "train_right_debug.png".into(),
                                 image_backward: "train_left_debug.png".into(),
                             },
@@ -613,7 +636,7 @@ pub async fn train_master(
 
                         next_train_serial += 1;
                     },
-                    CtrlPacket::NewTrack(start, end) => {
+                    CtrlPacket::NewTrack(start, end, color) => {
                         if nodes.contains_key(&start) && nodes.contains_key(&end) {
                             let new_track = TrackPiece::new(
                                 next_track_serial,
@@ -621,7 +644,7 @@ pub async fn train_master(
                                 end,
                                 &mut nodes,
                                 BezierDiff::ToBezier2,
-                                "#CC6".into(),
+                                color,
                                 20f64,
                             );
 

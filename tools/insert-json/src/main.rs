@@ -1,17 +1,43 @@
+use packet::*;
+use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs::read_to_string};
-use packet::*;
 
 #[derive(Serialize, Deserialize)]
 struct Node {
     id: NodeID,
     coord: Coord,
     connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+    conn_type: NodeType,
 }
 
 impl Node {
     fn to_packet(&self) -> ServerPacket {
         ServerPacket::PacketNODE(self.id, self.coord)
+    }
+
+    fn next_track(&self, current_track: TrackID) -> (TrackID, Direction) {
+        (|a: (&u32, &Direction)| (*a.0, !*a.1))(match self.conn_type {
+            NodeType::Random => loop {
+                let nth = thread_rng().gen_range(0..self.connections.len());
+                let next_track = self.connections.iter().nth(nth).unwrap();
+                if self.connections.len() == 1 {
+                    break next_track;
+                }
+                if next_track.0 != &current_track {
+                    break next_track;
+                }
+            },
+            NodeType::RoundRobin => self
+                .connections
+                .range(current_track + 1..=TrackID::MAX)
+                .next()
+                .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap()),
+            NodeType::Reverse => (
+                &current_track,
+                self.connections.get(&current_track).unwrap(),
+            ),
+        })
     }
 }
 
@@ -65,21 +91,6 @@ impl TrackPiece {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct TrainProperties {
-    speed: f64, // px/s
-    image_forward: String,
-    image_backward: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct TrainInstance {
-    properties: TrainProperties,
-    current_track: u32,
-    progress: f64,        // 0 ~ 1
-    direction: Direction, // backward direction: progress goes from 1 to 0
-}
-
 fn main() {
     let mut timestamp = String::new();
     let mut location = String::new();
@@ -112,12 +123,12 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     for (_, node) in nodes {
-        let packet = CtrlPacket::NewNode(node.coord);
+        let packet = CtrlPacket::NewNode(node.coord, node.conn_type);
         sender.send(ewebsock::WsMessage::Text(packet.to_string()));
     }
 
     for (id, track) in tracks {
-        let packet_new = CtrlPacket::NewTrack(track.start, track.end);
+        let packet_new = CtrlPacket::NewTrack(track.start, track.end, track.color);
         let packet_diff = CtrlPacket::TrackAdjust(id, track.path.get_diff());
 
         sender.send(ewebsock::WsMessage::Text(packet_new.to_string()));

@@ -8,3 +8,4 @@ ewebsock = { version = "0.6.0", features = ["tls"] }
 serde = { version = "1.0.206", features = ["derive"] }
 serde_json = "1.0.124"
 packet = { path="../../packet"}
+rand = "0.8.5"
