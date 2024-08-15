@@ -1,7 +1,7 @@
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
+use std::fs::{read_to_string, File};
 use std::io::Write;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -201,22 +201,12 @@ impl TrainInstance {
     }
 }
 
-fn default_stuff() -> (
+fn empty_stuff() -> (
     BTreeMap<NodeID, Node>,
     BTreeMap<TrackID, TrackPiece>,
     BTreeMap<TrainID, TrainInstance>,
 ) {
-    let mut nodes = BTreeMap::new();
-    // nodes.insert(
-    //     0,
-    //     Node {
-    //         id: 0,
-    //         coord: Coord(0f64, 0f64),
-    //         connections: BTreeMap::new(),
-    //         conn_type: NodeType::Random,
-    //     },
-    // );
-    (nodes, BTreeMap::new(), BTreeMap::new())
+    (BTreeMap::new(), BTreeMap::new(), BTreeMap::new())
 }
 
 fn test_stuff() -> (
@@ -498,6 +488,100 @@ fn test_stuff() -> (
     (nodes, tracks, trains)
 }
 
+fn remove_stuff(existing: &mut BTreeSet<String>, stuff_name: &str) {
+    existing.remove(stuff_name);
+    match File::create("tracks/existing.json") {
+        Ok(mut file) => match file.write_all(serde_json::to_string(existing).unwrap().as_bytes()) {
+            Ok(_) => {}
+            Err(_) => {
+                println!("Failed writing to tracks/existing.json");
+            }
+        },
+        Err(_) => {
+            println!("Failed writing to tracks/existing.json");
+        }
+    }
+    match std::fs::remove_file(format!("tracks/nodes_{}.json", stuff_name)) {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed removing tracks/nodes_{}.json", stuff_name);
+        }
+    }
+    match std::fs::remove_file(format!("tracks/track_{}.json", stuff_name)) {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed removing tracks/track_{}.json", stuff_name);
+        }
+    }
+}
+
+fn read_stuff_from_name(
+    track_name: &str,
+) -> (Result<
+    (
+        BTreeMap<NodeID, Node>,
+        BTreeMap<TrackID, TrackPiece>,
+        BTreeMap<TrainID, TrainInstance>,
+    ),
+    &'static str,
+>) {
+    if track_name == "" {
+        return Ok(empty_stuff());
+    }
+
+    if !track_name
+        .chars()
+        .all(|chr: char| chr.is_alphanumeric() || chr == '_' || chr == '-')
+    {
+        return Err("Track name contains invalid character");
+    }
+    let mut existing: BTreeSet<String> = match serde_json::from_str(
+        &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
+    ) {
+        Ok(set) => set,
+        Err(_) => {
+            return Err("Failed parsing exsiting.json");
+        }
+    };
+    if !existing.contains(track_name) {
+        return Err("Track name isn't found in existing.json");
+    }
+
+    let nodes = match serde_json::from_str(
+        match &read_to_string(format!("tracks/nodes_{}.json", track_name)) {
+            Ok(file) => file,
+            Err(_) => {
+                remove_stuff(&mut existing, track_name);
+                return Err("Failed reading node file");
+            }
+        },
+    ) {
+        Ok(nodes) => nodes,
+        Err(_) => {
+            remove_stuff(&mut existing, track_name);
+            return Err("Failed parsing node file");
+        }
+    };
+    let tracks = match serde_json::from_str(
+        match &read_to_string(format!("tracks/track_{}.json", track_name)) {
+            Ok(file) => file,
+            Err(_) => {
+                remove_stuff(&mut existing, track_name);
+                return Err("Failed reading track file");
+            }
+        },
+    ) {
+        Ok(tracks) => tracks,
+        Err(_) => {
+            remove_stuff(&mut existing, track_name);
+            return Err("Failed parsing track file");
+        }
+    };
+    let trains = BTreeMap::new();
+
+    Ok((nodes, tracks, trains))
+}
+
 pub async fn train_master(
     mut view_request_rx: mpsc::Receiver<
         oneshot::Sender<(
@@ -510,9 +594,17 @@ pub async fn train_master(
     mut derail_rx: mpsc::Receiver<()>,
     using_track: String,
 ) {
-    println!("Server Started using track \"{}\"", using_track);
+    if using_track != "" {
+        println!("Server started using track \"{}\"", using_track);
+    } else {
+        println!("Server started using default track");
+    }
 
-    let (mut nodes, mut tracks, mut trains) = default_stuff();
+    let (mut nodes, mut tracks, mut trains) =
+        read_stuff_from_name(&using_track).unwrap_or_else(|err| {
+            println!("Failed reading track:\n\t{}\nUsing empty track instead", err);
+            empty_stuff()
+        });
 
     let mut next_node_serial = nodes.len() as u32;
     let mut next_track_serial = tracks.len() as u32;
@@ -771,20 +863,20 @@ pub async fn train_master(
         }
     }
 
-    let timestamp = std::time::SystemTime::now()
+    let timestamp = format!("{:011}",std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("WTF We're in the past")
-        .as_secs();
+        .as_secs());
     let _ = std::fs::create_dir("tracks");
-    File::create(format!("tracks/nodes_{:011}.json", timestamp))
+    File::create(format!("tracks/nodes_{}.json", timestamp))
         .unwrap()
         .write_all(serde_json::to_string(&nodes).unwrap().as_bytes())
         .unwrap();
-    File::create(format!("tracks/track_{:011}.json", timestamp))
+    File::create(format!("tracks/track_{}.json", timestamp))
         .unwrap()
         .write_all(serde_json::to_string(&tracks).unwrap().as_bytes())
         .unwrap();
-    let mut existing: BTreeSet<u64> = serde_json::from_str(
+    let mut existing: BTreeSet<String> = serde_json::from_str(
         &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
     )
     .unwrap();
