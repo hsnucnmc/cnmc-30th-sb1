@@ -14,4 +14,11 @@
 ## `/force-derail` HTTP Endpoint
 
 - `GET /force-derail` cause the backend process to reset and load the default nodes, tracks, and trains.
-  - Which is currently a single node and nothing else.
+  - Which is currently nothing.
+- `GET /force-derail/{track}` cause the backend process to reset and load a specified set of nodes and tracks.
+  - `{track}` is a valid track name, possibly chosen from the list return by the `/available-tracks` HTTP Endpoint.
+  - if `{track}` is invalid (determined by the backend process), the default stuff are used.
+
+## `/available-tracks` HTTP Endpoint
+
+- `GET /available-tracks` return a list of available train tracks to choose fromm
