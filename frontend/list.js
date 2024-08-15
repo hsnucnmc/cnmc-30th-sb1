@@ -249,16 +249,16 @@ function startSocket() {
                         cells[0].innerText = new_node.id;
                         cells[1].children[0].value = new_node.x;
                         cells[2].children[0].value = new_node.y;
-                        
+
                         new_node.x_input = cells[1].children[0];
                         new_node.y_input = cells[2].children[0];
-                        
+
                         cells[3].children[0].onclick = () => {
                             ctrl_socket.send("node_move\n" + new_node.id + " " + new_node.x_input.value + ";" + new_node.y_input.value);
                         };
-                        
+
                         new_node.html_row = new_row;
-                        
+
                         nodelist.set(new_node.id, new_node);
                     }
                     break;
@@ -309,3 +309,20 @@ document.getElementById("delete-all").onclick = () => {
         socket.send("click\n" + train.id + " 1,0,0");
     })
 }
+
+let track_select = document.getElementById("track-select");
+track_select.addEventListener("click", _ => {
+    fetch("/available-tracks").then(response => { return response.json(); })
+        .then(list => {
+            let track_select = document.getElementById("track-select");
+            let current_value = track_select.value;
+            track_select.innerHTML = "<option value=\"\">--DEFAULT TRACK--</option>";
+            for (track_name of list) {
+                let option = document.createElement("option");
+                option.innerHTML = track_name;
+                option.value = track_name;
+                track_select.append(option);
+            }
+            track_select.value = current_value;
+        });
+});
