@@ -1,7 +1,10 @@
 use std::collections::BTreeSet;
 
 use crate::AppState;
-use axum::extract::{ws, Path, State};
+use axum::{
+    extract::{ws, Path, State},
+    response::IntoResponse,
+};
 use packet::*;
 use tokio::sync::oneshot;
 
@@ -49,16 +52,19 @@ pub async fn derail_handler(
     axum::http::StatusCode::OK
 }
 
-pub async fn list_track_handler() -> axum::Json<BTreeSet<String>> {
+pub async fn list_track_handler() -> axum::response::Response {
     axum::Json(
-        serde_json::from_str(
+        match serde_json::from_str::<BTreeSet<String>>(
             &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
-        )
-        .unwrap_or_else(|_| {
-            println!("Failed parsing exsiting.json");
-            BTreeSet::new()
-        }),
+        ) {
+            Ok(stuff) => stuff,
+            Err(_) => {
+                println!("Failed parsing exsiting.json");
+                return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        },
     )
+    .into_response()
 }
 
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
