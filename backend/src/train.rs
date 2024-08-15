@@ -508,8 +508,9 @@ pub async fn train_master(
     mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
+    using_track: String,
 ) {
-    println!("Server Started");
+    println!("Server Started using track \"{}\"", using_track);
 
     let (mut nodes, mut tracks, mut trains) = default_stuff();
 

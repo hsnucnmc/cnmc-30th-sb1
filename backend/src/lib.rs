@@ -17,4 +17,5 @@ pub struct AppState {
     pub ctrl_request_tx: mpsc::Sender<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
     pub valid_id: watch::Receiver<BTreeSet<TrainID>>,
     pub derail_tx: mpsc::Sender<()>,
+    pub next_track: std::sync::Arc<tokio::sync::Mutex<Option<String>>>,
 }

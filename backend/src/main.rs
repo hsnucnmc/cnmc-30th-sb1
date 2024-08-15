@@ -1,15 +1,17 @@
 use std::collections::BTreeSet;
 use std::future::IntoFuture;
 
+use axum::extract::Path;
 use axum::{routing::get, Router};
 
 use tokio::sync::{mpsc, watch};
 
-use train_backend::{handler, train, AppState};
 use packet::*;
+use train_backend::{handler, train, AppState};
 
 #[tokio::main]
 async fn main() {
+    let mut next_track = Some(String::new());
     loop {
         let (view_request_tx, view_request_rx) = mpsc::channel(32);
 
@@ -19,8 +21,19 @@ async fn main() {
 
         let (derail_tx, derail_rx) = mpsc::channel(1);
 
+        let next_track_mutex = tokio::sync::Mutex::new(Some(String::new()));
+        let next_track_arc = std::sync::Arc::new(next_track_mutex);
+
+        let using_track = next_track.take().unwrap();
         let tm_handle = tokio::spawn(async move {
-            train::train_master(view_request_rx, ctrl_request_rx, valid_id_tx, derail_rx).await
+            train::train_master(
+                view_request_rx,
+                ctrl_request_rx,
+                valid_id_tx,
+                derail_rx,
+                using_track,
+            )
+            .await
         });
 
         // build our application with a single route
@@ -30,6 +43,7 @@ async fn main() {
             valid_id: valid_id_rx,
             ctrl_request_tx,
             derail_tx,
+            next_track: next_track_arc.clone(),
         };
 
         let assets_dir = std::path::PathBuf::from("frontend/");
@@ -39,7 +53,9 @@ async fn main() {
             .fallback_service(axum::routing::get_service(
                 tower_http::services::ServeDir::new(assets_dir)
                     .append_index_html_on_directories(true)
-                    .fallback(tower_http::services::redirect::Redirect::<Full>::temporary("/".parse().unwrap())),
+                    .fallback(tower_http::services::redirect::Redirect::<Full>::temporary(
+                        "/".parse().unwrap(),
+                    )),
             ))
             .route(
                 "/derailer",
@@ -62,8 +78,14 @@ async fn main() {
             .route("/ws", get(handler::ws_get_handler))
             .route("/ws-ctrl", get(handler::ctrl_get_handler))
             .route("/available-tracks", get(handler::list_track_handler))
-            .route("/force-derail", get(handler::derail_handler))
-            .route("/force-derail/", get(handler::derail_handler))
+            .route(
+                "/force-derail",
+                get(|state| handler::derail_handler(state, Path("".into()))),
+            )
+            .route(
+                "/force-derail/",
+                get(|state| handler::derail_handler(state, Path("".into()))),
+            )
             .route("/force-derail/:id", get(handler::derail_handler))
             .with_state(shared_state);
 
@@ -79,6 +101,9 @@ async fn main() {
             .await
             .unwrap();
         println!("Axum Serve and Train Master had been shut down. Restarting in 3 secs...");
+
+        next_track = Some(next_track_arc.lock().await.take().unwrap());
+
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
 }

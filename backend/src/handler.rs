@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use crate::AppState;
+use axum::extract::{ws, Path, State};
 use packet::*;
-use axum::extract::{ws, State};
 use tokio::sync::oneshot;
 
 pub async fn ws_get_handler(
@@ -19,14 +19,46 @@ pub async fn ctrl_get_handler(
     ws.on_upgrade(|socket| ctrl_client_handler(socket, state))
 }
 
-pub async fn derail_handler(State(state): State<AppState>) {
+pub async fn derail_handler(
+    State(state): State<AppState>,
+    Path(track_name): Path<String>,
+) -> axum::http::StatusCode {
+    if !(track_name == "") {
+        if !track_name
+            .chars()
+            .all(|chr: char| chr.is_alphanumeric() || chr == '_' || chr == '-')
+        {
+            return axum::http::StatusCode::BAD_REQUEST;
+        }
+        let existing: BTreeSet<String> = match serde_json::from_str(
+            &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
+        ) {
+            Ok(set) => set,
+            Err(_) => {
+                println!("Failed parsing exsiting.json");
+                return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        };
+        if !existing.contains(&track_name) {
+            return axum::http::StatusCode::BAD_REQUEST;
+        }
+    }
+
+    *state.next_track.lock().await = Some(track_name);
     let _ = state.derail_tx.send(()).await;
+    axum::http::StatusCode::OK
 }
 
 pub async fn list_track_handler() -> axum::Json<BTreeSet<String>> {
-    axum::Json(serde_json::from_str(
-        &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
-    ).unwrap())
+    axum::Json(
+        serde_json::from_str(
+            &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
+        )
+        .unwrap_or_else(|_| {
+            println!("Failed parsing exsiting.json");
+            BTreeSet::new()
+        }),
+    )
 }
 
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {

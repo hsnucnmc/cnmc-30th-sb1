@@ -22,3 +22,4 @@
 ## `/available-tracks` HTTP Endpoint
 
 - `GET /available-tracks` return a list of available train tracks to choose fromm
+- returned json is a array of strings containing only ascii alphanumerics, "_", or "-".
