@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::AppState;
 use packet::*;
 use axum::extract::{ws, State};
@@ -19,6 +21,12 @@ pub async fn ctrl_get_handler(
 
 pub async fn derail_handler(State(state): State<AppState>) {
     let _ = state.derail_tx.send(()).await;
+}
+
+pub async fn list_track_handler() -> axum::Json<BTreeSet<String>> {
+    axum::Json(serde_json::from_str(
+        &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
+    ).unwrap())
 }
 
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {

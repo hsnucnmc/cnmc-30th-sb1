@@ -61,7 +61,10 @@ async fn main() {
             )
             .route("/ws", get(handler::ws_get_handler))
             .route("/ws-ctrl", get(handler::ctrl_get_handler))
+            .route("/available-tracks", get(handler::list_track_handler))
             .route("/force-derail", get(handler::derail_handler))
+            .route("/force-derail/", get(handler::derail_handler))
+            .route("/force-derail/:id", get(handler::derail_handler))
             .with_state(shared_state);
 
         let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");
