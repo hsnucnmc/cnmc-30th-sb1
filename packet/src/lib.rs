@@ -9,7 +9,7 @@ pub type Thickness = f64;
 pub type StartT = f64;
 pub type Duration = std::time::Duration; // ms
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct Coord(pub f64, pub f64); // ms
 
 impl std::fmt::Display for Coord {
@@ -75,7 +75,7 @@ impl std::ops::Not for Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Bezier {
     Bezier2(Coord, Coord),
     Bezier3(Coord, Coord, Coord),

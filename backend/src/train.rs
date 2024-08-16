@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use packet::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 struct Node {
     id: NodeID,
     coord: Coord,
@@ -45,7 +45,7 @@ impl Node {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 struct TrackPiece {
     id: TrackID,
     start: NodeID,
@@ -517,14 +517,14 @@ fn remove_stuff(existing: &mut BTreeSet<String>, stuff_name: &str) {
 
 fn read_stuff_from_name(
     track_name: &str,
-) -> (Result<
+) -> Result<
     (
         BTreeMap<NodeID, Node>,
         BTreeMap<TrackID, TrackPiece>,
         BTreeMap<TrainID, TrainInstance>,
     ),
     &'static str,
->) {
+> {
     if track_name == "" {
         return Ok(empty_stuff());
     }
@@ -547,7 +547,7 @@ fn read_stuff_from_name(
         return Err("Track name isn't found in existing.json");
     }
 
-    let nodes = match serde_json::from_str(
+    let loaded_nodes: BTreeMap<u32, Node> = match serde_json::from_str(
         match &read_to_string(format!("tracks/nodes_{}.json", track_name)) {
             Ok(file) => file,
             Err(_) => {
@@ -562,7 +562,7 @@ fn read_stuff_from_name(
             return Err("Failed parsing node file");
         }
     };
-    let tracks = match serde_json::from_str(
+    let loaded_tracks: BTreeMap<u32, TrackPiece> = match serde_json::from_str(
         match &read_to_string(format!("tracks/track_{}.json", track_name)) {
             Ok(file) => file,
             Err(_) => {
@@ -577,8 +577,50 @@ fn read_stuff_from_name(
             return Err("Failed parsing track file");
         }
     };
-    let trains = BTreeMap::new();
 
+    let mut nodes = BTreeMap::new();
+    for (id, node) in &loaded_nodes {
+        nodes.insert(
+            *id,
+            Node {
+                id: *id,
+                coord: node.coord,
+                connections: BTreeMap::new(),
+                conn_type: node.conn_type,
+            },
+        );
+    }
+
+    let mut tracks = BTreeMap::new();
+    for (id, track) in &loaded_tracks {
+        if !nodes.contains_key(&track.start) {
+            return Err("Loaded track contains start node not included in nodes");
+        }
+        if !nodes.contains_key(&track.end) {
+            return Err("Loaded track contains end node not included in nodes");
+        }
+
+        tracks.insert(
+            *id,
+            TrackPiece::new(
+                *id,
+                track.start,
+                track.end,
+                &mut nodes,
+                track.path.get_diff(),
+                track.color.clone(),
+                track.thickness,
+            ),
+        );
+    }
+
+    let trains = BTreeMap::new();
+    if loaded_nodes != nodes {
+        println!("Possibly inconsistency existing in loaded nodes but using it anyway");
+    }
+    if loaded_tracks != tracks {
+        println!("Possibly inconsistency existing in loaded nodes but using it anyway");
+    }
     Ok((nodes, tracks, trains))
 }
 
@@ -602,7 +644,10 @@ pub async fn train_master(
 
     let (mut nodes, mut tracks, mut trains) =
         read_stuff_from_name(&using_track).unwrap_or_else(|err| {
-            println!("Failed reading track:\n\t{}\nUsing empty track instead", err);
+            println!(
+                "Failed reading track:\n\t{}\nUsing empty track instead",
+                err
+            );
             empty_stuff()
         });
 
@@ -863,10 +908,13 @@ pub async fn train_master(
         }
     }
 
-    let timestamp = format!("{:011}",std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("WTF We're in the past")
-        .as_secs());
+    let timestamp = format!(
+        "{:011}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("WTF We're in the past")
+            .as_secs()
+    );
     let _ = std::fs::create_dir("tracks");
     File::create(format!("tracks/nodes_{}.json", timestamp))
         .unwrap()
