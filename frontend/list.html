@@ -31,6 +31,11 @@
             style="margin-right: 100px;">
         <label style="margin-right: 20px;">Y: </label><input type="number" id="create-node-y"
             style="margin-right: 100px;">
+        <select id="create-node-type" style="margin-right: 20px;">
+            <option value="random">Random</option>
+            <option value="roundrobin">RoundRobin</option>
+            <option value="reverse">Reverse</option>
+        </select>
         <button onclick="
             if (
                 document.getElementById('create-node-x').value != '' &&
@@ -38,7 +43,8 @@
             )
                 ctrl_socket.send(
                     'node_new\n'+ document.getElementById('create-node-x').value + ';'
-                    + document.getElementById('create-node-y').value +' random'
+                    + document.getElementById('create-node-y').value +' '
+                    + document.getElementById('create-node-type').value
                 )
         ">CREATE NODE</button>
     </div>
