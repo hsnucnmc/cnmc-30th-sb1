@@ -39,7 +39,10 @@
 <train_speed>	::= <f64>
 <train_new>		::= "train_new\n" <track_id> " " <train_speed>
 <track_new>     ::= "track_new\n" <node_id> " " <node_id> " " <color>
-<node_type>		::= "random" | "roundrobin" | "reverse"
+<node_type>		::= "random" | "roundrobin" | "reverse" | "derail" | "configurable"
 <node_move>		::= "node_move\n" <node_id> " " <coord>
+<node_edit>		::= "node_edit\n" <node_id> " " <node_type>
+<node_delete>	::= "node_delete\n" <node_id>
 <track_adjust>	::= "track_adjust\n" <track_id>  " " ( <coord> | <coord> "," <coord>)?
+<track_delete>	::= "track_delete\n" <track_id>
 <ctrl_packet>	::=	<node_new> | <train_new> | <track_new> | <node_move> | <track_adjust>
