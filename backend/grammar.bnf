@@ -21,7 +21,8 @@
 <pressed_alt>	::= <bool>
 <modifier>		::= <pressed_ctrl> "," <pressed_shift> "," <pressed_alt>
 <click>			::= "click\n" <train_id> " " <modifier>
-<client_packet>	::= <click>
+<switch>		::= "switch\n" <node_id> " " <modifier>
+<client_packet>	::= <click> | <switch>
 
 <bezier2>		::= "bezier2;" <coord> ";" <coord>
 <bezier3>		::= "bezier3;" <coord> ";" <coord> ";" <coord>
@@ -38,7 +39,7 @@
 <node_new>		::= "node_new\n" <coord> " " <node_type>
 <train_speed>	::= <f64>
 <train_new>		::= "train_new\n" <track_id> " " <train_speed>
-<track_new>     ::= "track_new\n" <node_id> " " <node_id> " " <color>
+<track_new>		::= "track_new\n" <node_id> " " <node_id> " " <color>
 <node_type>		::= "random" | "roundrobin" | "reverse" | "derail" | "configurable"
 <node_move>		::= "node_move\n" <node_id> " " <coord>
 <node_edit>		::= "node_edit\n" <node_id> " " <node_type>

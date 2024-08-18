@@ -22,4 +22,15 @@
 ## `/available-tracks` HTTP Endpoint
 
 - `GET /available-tracks` return a list of available train tracks to choose fromm
-- returned json is a array of strings containing only ascii alphanumerics, "_", or "-".
+  - returned json is a array of strings containing only ascii alphanumerics, "_", or "-".
+
+## `/nodes/` HTTP Endpoint
+
+- `GET /nodes` return a list of nodes ids with their location
+- `GET /nodes/{id}` return a json containing connections and type of the node
+  - and configured routing data if applicable
+- `GET /nodes/{id}/routing` sends only the routing data
+  - 404 if the node is not one of type "Configurable"
+- `POST /nodes/{id}/routing` overides the routing data
+  - 404 if the node is not one of type "Configurable"
+  - 422 if the provided json doesn't make sense logically
