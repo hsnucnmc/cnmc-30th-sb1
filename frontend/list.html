@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=m, initial-scale=1.0">
     <link rel="stylesheet" href="list.css">
+    <link rel="stylesheet" type="text/css" href="https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.min.css">
     <title>Train List</title>
 </head>
 
@@ -18,38 +19,96 @@
         <button onclick="fetch('/force-derail/' + document.getElementById('track-select').value)">RESTART
             EVERYTHING</button>
     </div>
-    <table id="node-table">
-        <colgroup span="10"></colgroup>
-        <tr>
-            <th>NodeID</th>
-            <th colspan="2">Position</th>
-            <th>Actions</th>
-        </tr>
-    </table>
-    <div style="display: flex; flex-flow: row nowrap; align-content:center;">
-        <label style="margin-right: 20px;">X: </label><input type="number" id="create-node-x"
-            style="margin-right: 100px;">
-        <label style="margin-right: 20px;">Y: </label><input type="number" id="create-node-y"
-            style="margin-right: 100px;">
-        <select id="create-node-type" style="margin-right: 20px;">
-            <option value="random">Random</option>
-            <option value="roundrobin">RoundRobin</option>
-            <option value="reverse">Reverse</option>
-            <option value="derail">Derailing</option>
-            <option value="configurable">Configurable</option>
-        </select>
-        <button onclick="
-            if (
-                document.getElementById('create-node-x').value != '' &&
-                document.getElementById('create-node-y').value != ''
-            )
-                ctrl_socket.send(
-                    'node_new\n'+ document.getElementById('create-node-x').value + ';'
-                    + document.getElementById('create-node-y').value +' '
-                    + document.getElementById('create-node-type').value
-                )
-        ">CREATE NODE</button>
-    </div>
+    <div id="grid" style="width: 1000px; height: 400px;"></div>
+    <script type="module">
+        import { w2grid, w2popup } from 'https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.es6.min.js'
+
+        var typeoption = [
+            { id: 1, text: 'Random' },
+            { id: 2, text: 'RoundRobin' },
+            { id: 3, text: 'Reverse' },
+            { id: 4, text: 'Derailing' },
+            { id: 5, text: 'Configurable' }
+        ];
+        var record;
+        grid = new w2grid({
+            name: 'nodelist',
+            header: 'Node List',
+            box: '#grid',
+            show: {
+                toolbar: true,
+                footer: true,
+                lineNumbers: true,
+                toolbarSave: false,
+                header: true
+            },
+            columns: [
+                { field: 'recid', text: 'NodeID', size: '150px', sortable: true, resizable: true },
+                {
+                    field: 'PositionX', text: 'PositionX', size: '180px', sortable: true, resizable: true, render: 'int',
+                    editable: { type: 'int', min: 0, max: 32756 }
+                },
+                {
+                    field: 'PositionY', text: 'PositionY', size: '180px', sortable: true, resizable: true, render: 'int',
+                    editable: { type: 'int', min: 0, max: 32756 }
+                },
+                {
+                    field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
+                    editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
+                    render(record, extra) {
+                        return extra.value?.text || record.nodetype;
+                    }
+                },
+            ],
+            toolbar: {
+                items: [
+                    { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
+                    { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
+                    { type: 'break' },
+                    { type: 'button', id: 'showChanges', text: 'Show Changes' },
+
+                ],
+                onClick(event) {
+                    if (event.target == 'add') {
+                        let recid = grid.records[grid.records.length - 1].recid + 1
+                        this.owner.add({ recid });
+                        this.owner.scrollIntoView(recid);
+                        this.owner.editField(recid, 1)
+                    }
+                    if (event.target == 'showChanges') {
+                        showChanged()
+                    }
+                    if (event.target == 'pushChanges') {
+                        //TODO: add send a new websocket to server
+                        //get change
+                        let change = grid.getChanges();
+                        grid.save();
+                        change.forEach(e => {
+                            record = grid.get(e.recid);
+                            //you can access node type  by record.nodetype
+                            ctrl_socket.send("node_move\n" + e.recid + " " + record.PositionX + ";" + record.PositionY);
+                        });
+
+                    }
+                }
+            },
+            records: [
+            ]
+        })
+
+        window.showChanged = function () {
+            w2popup.open({
+                title: 'Records Changes',
+                with: 600,
+                height: 550,
+                body: `<pre>${JSON.stringify(grid.getChanges(), null, 4)}</pre>`,
+                actions: { Ok: w2popup.close }
+            })
+        }
+
+    </script>
+
+    <!-- node end here -->
     <table id="track-table">
         <colgroup span="10"></colgroup>
         <tr>

@@ -6,12 +6,26 @@ let nodelist = new Map();
 
 let trainHTMLTable = document.getElementById("train-table");
 let trackHTMLTable = document.getElementById("track-table");
-let nodeHTMLTable = document.getElementById("node-table");
 
 let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
+maindata = [
+    { recid: 1, PositionX: 100, PositionY: 100},
+    { recid: 2, PositionX: 200, PositionY: 454.40},
+    { recid: 3, PositionX: 350, PositionY: 1040},
+    { recid: 4, PositionX: 350, PositionY: 140},
+    { recid: 5, PositionX: 350, PositionY: 500},
+    { recid: 7, PositionX: 350, PositionY: 790},
+    { recid: 8, PositionX: 350, PositionY: 4040},
+    { recid: 9, PositionX: 1000, PositionY: 3400}
+];
+for(i = 1;i<=maindata.length;i++){
+    grid.add({ recid: i});
+}
 
+grid.records=maindata;
+grid.update();
 function redraw(time) {
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
@@ -84,10 +98,6 @@ function startSocket() {
 
         while (trackHTMLTable.rows.length > 1) {
             trackHTMLTable.deleteRow(-1);
-        }
-
-        while (nodeHTMLTable.rows.length > 1) {
-            nodeHTMLTable.deleteRow(-1);
         }
 
         derail_img.remove();
@@ -231,33 +241,20 @@ function startSocket() {
 
                         let new_row = nodelist.get(new_node.id)?.html_row;
                         if (!new_row) {
-                            let x_input = document.createElement("input");
-                            x_input.type = "number";
-                            let y_input = document.createElement("input");
-                            y_input.type = "number";
-                            let move_button = document.createElement("button");
-                            move_button.innerText = "MOVE";
-
-                            new_row = nodeHTMLTable.insertRow(-1);
-                            new_row.insertCell(-1); // id
-                            new_row.insertCell(-1).append(x_input); // x position
-                            new_row.insertCell(-1).append(y_input); // y position
-                            new_row.insertCell(-1).append(move_button); // move_button
+                            //! Do not support multi control
+                            //if not exist
+                            if(grid.get(new_node.id)==null){
+                                grid.add({recid:new_node.id,PositionX:new_node.x,PositionY:new_node.y,nodetype:"Random"});
+                            }else{
+                                let recordindex = grid.get(new_node.id,true);
+                                grid.records[recordindex].PositionX=new_node.x;
+                                grid.records[recordindex].PositionY=new_node.y;
+                                grid.records[recordindex].nodetype="Random";
+                                grid.update();
+                            }
+                            
                         }
 
-                        let cells = new_row.children;
-                        cells[0].innerText = new_node.id;
-                        cells[1].children[0].value = new_node.x;
-                        cells[2].children[0].value = new_node.y;
-
-                        new_node.x_input = cells[1].children[0];
-                        new_node.y_input = cells[2].children[0];
-
-                        cells[3].children[0].onclick = () => {
-                            ctrl_socket.send("node_move\n" + new_node.id + " " + new_node.x_input.value + ";" + new_node.y_input.value);
-                        };
-
-                        new_node.html_row = new_row;
 
                         nodelist.set(new_node.id, new_node);
                     }
