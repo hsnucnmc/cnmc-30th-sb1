@@ -41,6 +41,15 @@ impl Node {
                 &current_track,
                 self.connections.get(&current_track).unwrap(),
             ),
+            // TODO: implement the new node types
+            NodeType::Derail => (
+                &current_track,
+                self.connections.get(&current_track).unwrap(),
+            ),
+            NodeType::Configurable => (
+                &current_track,
+                self.connections.get(&current_track).unwrap(),
+            ),
         })
     }
 }
@@ -848,6 +857,8 @@ pub async fn train_master(
                                 .await;
                         }
                     }
+                    // TODO: implement the new CtrlPackets
+                    _ => {},
                 }
 
                 let wait_end = tokio::time::Instant::now();

@@ -134,6 +134,8 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                             }
                         }
                     }
+                    // TODO: parse and passes switch packet to train master
+                    _ => {}
                 }
             }
 

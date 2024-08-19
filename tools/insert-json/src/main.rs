@@ -37,6 +37,10 @@ impl Node {
                 &current_track,
                 self.connections.get(&current_track).unwrap(),
             ),
+            _ => (
+                &current_track,
+                self.connections.get(&current_track).unwrap(),
+            ),
         })
     }
 }

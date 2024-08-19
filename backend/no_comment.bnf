@@ -21,7 +21,8 @@
 <pressed_alt>	::= <bool>
 <modifier>		::= <pressed_ctrl> "," <pressed_shift> "," <pressed_alt>
 <click>			::= "click\n" <train_id> " " <modifier>
-<client_packet>	::= <click>
+<switch>		::= "switch\n" <node_id> " " <modifier>
+<client_packet>	::= <click> | <switch>
 
 <bezier2>		::= "bezier2;" <coord> ";" <coord>
 <bezier3>		::= "bezier3;" <coord> ";" <coord> ";" <coord>
@@ -30,13 +31,18 @@
 <track_update>	::= "track\n" <track_count> ( "\n" <track_id> " " <bezier> " " <color> " " <thickness>)+
 <train_update>	::= "train\n" <train_id> " " <track_id> " " <start_t> " " <duration> " " <direction> "\n" <image_src>
 <node_update>	::= "node\n" <node_id> " " <coord>
-<removal_type>	::= "explosion" | "silent" | "derail" | "shake" | "take_off"
+<removal_type>	::= "explosion" | "silent" | "derail" | "vibrate" | "take_off"
 <train_remove>	::= "remove\n" <train_id> " " <removal_type>
 <server_packet>	::= <track_update> | <train_update> | <node_update> | <train_remove>
 
-<node_new>		::= "node_new\n" <coord>
-<train_new>		::= "train_new\n" <track_id>
-<track_new>     ::= "track_new\n" <node_id> " " <node_id>
+<node_new>		::= "node_new\n" <coord> " " <node_type>
+<train_speed>	::= <f64>
+<train_new>		::= "train_new\n" <track_id> " " <train_speed>
+<track_new>		::= "track_new\n" <node_id> " " <node_id> " " <color>
+<node_type>		::= "random" | "roundrobin" | "reverse" | "derail" | "configurable"
 <node_move>		::= "node_move\n" <node_id> " " <coord>
+<node_edit>		::= "node_edit\n" <node_id> " " <node_type>
+<node_delete>	::= "node_delete\n" <node_id>
 <track_adjust>	::= "track_adjust\n" <track_id>  " " ( <coord> | <coord> "," <coord>)?
+<track_delete>	::= "track_delete\n" <track_id>
 <ctrl_packet>	::=	<node_new> | <train_new> | <track_new> | <node_move> | <track_adjust>

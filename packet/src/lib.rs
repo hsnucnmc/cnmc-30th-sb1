@@ -293,6 +293,7 @@ impl std::str::FromStr for ClickModifier {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ClientPacket {
+    PacketSWITCH(NodeID, ClickModifier),
     PacketCLICK(TrainID, ClickModifier),
 }
 
@@ -323,6 +324,23 @@ impl std::str::FromStr for ClientPacket {
                 };
 
                 Ok(ClientPacket::PacketCLICK(id, modifier))
+            }
+            "switch" => {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let id = match split_2[0].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad node id number"),
+                };
+                let modifier = match split_2[1].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet contains a bad click modifier"),
+                };
+
+                Ok(ClientPacket::PacketSWITCH(id, modifier))
             }
             _ => Err("Packet contained a unknown type identifier"),
         }
@@ -383,6 +401,8 @@ pub enum NodeType {
     Random,
     RoundRobin,
     Reverse,
+    Derail,
+    Configurable,
 }
 
 impl std::str::FromStr for NodeType {
@@ -393,6 +413,8 @@ impl std::str::FromStr for NodeType {
             "random" => Self::Random,
             "roundrobin" => Self::RoundRobin,
             "reverse" => Self::Reverse,
+            "derail" => Self::Derail,
+            "configurable" => Self::Configurable,
             _ => return Err("Packet contain an unknown node_type"),
         })
     }
@@ -407,6 +429,8 @@ impl std::fmt::Display for NodeType {
                 Self::Random => "random",
                 Self::RoundRobin => "roundrobin",
                 Self::Reverse => "reverse",
+                Self::Derail => "derail",
+                Self::Configurable => "configurable",
             }
         )
     }
@@ -417,7 +441,10 @@ pub enum CtrlPacket {
     NewTrain(TrackID, TrainSpeed),
     NewTrack(NodeID, NodeID, Color),
     NodeMove(NodeID, Coord),
+    NodeEdit(NodeID, NodeType),
+    NodeDelete(NodeID),
     TrackAdjust(TrackID, BezierDiff),
+    TrackDelete(TrackID),
 }
 
 impl std::str::FromStr for CtrlPacket {
@@ -442,12 +469,12 @@ impl std::str::FromStr for CtrlPacket {
                     Ok(coord) => coord,
                     Err(_) => return Err("Packet NewNode contains a bad coordinate"),
                 };
-                
+
                 let node_type = match split_2[1].parse() {
                     Ok(node_type) => node_type,
                     Err(_) => return Err("Packet NewNode contains a bad node_type"),
                 };
-                
+
                 Ok(CtrlPacket::NewNode(coord, node_type))
             }
             "train_new" => {
@@ -502,6 +529,31 @@ impl std::str::FromStr for CtrlPacket {
 
                 Ok(CtrlPacket::NodeMove(id, coord))
             }
+            "node_edit" => {
+                if split[1].split(" ").count() != 2 {
+                    return Err("Packet NodeEdit has unexpected amount of whitespaces");
+                }
+
+                let split_2: Vec<_> = split[1].split(" ").collect();
+                let id = match split_2[0].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet NodeEdit contains a bad node id"),
+                };
+                let node_type = match split_2[1].parse() {
+                    Ok(node_type) => node_type,
+                    Err(_) => return Err("Packet NodeEdit contains a bad coordinate"),
+                };
+
+                Ok(CtrlPacket::NodeEdit(id, node_type))
+            }
+            "node_delete" => {
+                let id = match split[1].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet NodeDelete contains a bad node id"),
+                };
+
+                Ok(CtrlPacket::NodeDelete(id))
+            }
             "track_adjust" => {
                 if split[1].split(" ").count() != 2 {
                     return Err("Packet TrackAdjust has unexpected amount of whitespaces");
@@ -518,6 +570,14 @@ impl std::str::FromStr for CtrlPacket {
                 };
 
                 Ok(CtrlPacket::TrackAdjust(id, diff))
+            }
+            "track_delete" => {
+                let id = match split[1].parse() {
+                    Ok(id) => id,
+                    Err(_) => return Err("Packet TrackDelete contains a bad track id"),
+                };
+
+                Ok(CtrlPacket::TrackDelete(id))
             }
             _ => Err("Packet contained a unknown type identifier"),
         }
@@ -539,8 +599,17 @@ impl std::fmt::Display for CtrlPacket {
             CtrlPacket::NodeMove(node_id, coord) => {
                 write!(f, "node_move\n{} {}", node_id, coord)
             }
+            CtrlPacket::NodeEdit(node_id, node_type) => {
+                write!(f, "node_edit\n{} {}", node_id, node_type)
+            }
+            CtrlPacket::NodeDelete(node_id) => {
+                write!(f, "node_delete\n{}", node_id)
+            }
             CtrlPacket::TrackAdjust(track_id, diff) => {
                 write!(f, "track_adjust\n{} {}", track_id, diff)
+            }
+            CtrlPacket::TrackDelete(track_id) => {
+                write!(f, "track_delete\n{}", track_id)
             }
         }
     }
