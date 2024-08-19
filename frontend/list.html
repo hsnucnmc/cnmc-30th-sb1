@@ -11,164 +11,164 @@
 </head>
 
 <body>
-    <h1 class="text-4xl bold text-center mt-4">Train List</h2>
-        <div
-            class="utils content-center border-solid border-neutral-900 border-2 rounded-lg p-2 w-fit text-right right-0 absolute h-20">
-            <!-- <button id="delete-all" style="margin-right: 100px;">DELETE ALL TRAIN</button> -->
-            <select id="track-select">
-                <option value="">--DEFAULT TRACK--</option>
-            </select>
-            <button class="bg-red-500 hover:bg-red-700 border-1 border-solid border-gray-500 p-1 rounded"
-                onclick="fetch('/force-derail/' + document.getElementById('track-select').value)">RESTART
-                EVERYTHING</button>
-        </div>
-        <div class="flex flex-row felx-nowrap mt-24">
-            <div id="grid" style="width: 1000px; height: 400px;"></div>
-            <div id="grid1" style="width: 1000px; height: 400px;"></div>
-        </div>
-        <div id="grid2" style="height: 400px;" class="w-screen"></div>
-        <script type="module">
-            import { w2grid, w2popup } from 'https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.es6.min.js'
+    <h1 class="text-4xl bold text-center mt-4">Train List</h1>
+    <div
+        class="utils content-center border-solid border-neutral-900 border-2 rounded-lg p-2 w-fit text-right right-0 absolute h-20">
+        <!-- <button id="delete-all" style="margin-right: 100px;">DELETE ALL TRAIN</button> -->
+        <select id="track-select">
+            <option value="">--DEFAULT TRACK--</option>
+        </select>
+        <button class="bg-red-500 hover:bg-red-700 border-1 border-solid border-gray-500 p-1 rounded"
+            onclick="fetch('/force-derail/' + document.getElementById('track-select').value)">RESTART
+            EVERYTHING</button>
+    </div>
+    <div class="flex flex-row felx-nowrap mt-24">
+        <div id="grid" style="width: 1000px; height: 400px;"></div>
+        <div id="grid1" style="width: 1000px; height: 400px;"></div>
+    </div>
+    <div id="grid2" style="height: 400px;" class="w-screen"></div>
+    <script type="module">
+        import { w2grid, w2popup } from 'https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.es6.min.js'
 
-            var typeoption = [
-                { id: 1, text: 'Random' },
-                { id: 2, text: 'RoundRobin' },
-                { id: 3, text: 'Reverse' },
-                { id: 4, text: 'Derailing' },
-                { id: 5, text: 'Configurable' }
-            ];
-            var record;
-            grid = new w2grid({
-                name: 'nodelist',
-                header: 'Node List',
-                box: '#grid',
-                show: {
-                    toolbar: true,
-                    footer: true,
-                    lineNumbers: true,
-                    toolbarSave: false,
-                    header: true
+        var typeoption = [
+            { id: 1, text: 'Random' },
+            { id: 2, text: 'RoundRobin' },
+            { id: 3, text: 'Reverse' },
+            { id: 4, text: 'Derailing' },
+            { id: 5, text: 'Configurable' }
+        ];
+        var record;
+        grid = new w2grid({
+            name: 'nodelist',
+            header: 'Node List',
+            box: '#grid',
+            show: {
+                toolbar: true,
+                footer: true,
+                lineNumbers: true,
+                toolbarSave: false,
+                header: true
+            },
+            columns: [
+                { field: 'recid', text: 'NodeID', size: '150px', sortable: true, resizable: true },
+                {
+                    field: 'PositionX', text: 'PositionX', size: '180px', sortable: true, resizable: true, render: 'int',
+                    editable: { type: 'int', min: 0, max: 32756 }
                 },
-                columns: [
-                    { field: 'recid', text: 'NodeID', size: '150px', sortable: true, resizable: true },
-                    {
-                        field: 'PositionX', text: 'PositionX', size: '180px', sortable: true, resizable: true, render: 'int',
-                        editable: { type: 'int', min: 0, max: 32756 }
-                    },
-                    {
-                        field: 'PositionY', text: 'PositionY', size: '180px', sortable: true, resizable: true, render: 'int',
-                        editable: { type: 'int', min: 0, max: 32756 }
-                    },
-                    {
-                        field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
-                        editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
-                        render(record, extra) {
-                            return extra.value?.text || record.nodetype;
-                        }
-                    },
-                ],
-                toolbar: {
-                    items: [
-                        { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
-                        { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
-                        { type: 'break' },
-                        { type: 'button', id: 'showChanges', text: 'Show Changes' },
-
-                    ],
-                    onClick(event) {
-                        if (event.target == 'add') {
-                            let recid = grid.records[grid.records.length - 1].recid + 1
-                            this.owner.add({ recid });
-                            this.owner.scrollIntoView(recid);
-                            this.owner.editField(recid, 1)
-                        }
-                        if (event.target == 'showChanges') {
-                            showChanged()
-                        }
-                        if (event.target == 'pushChanges') {
-                            //get change
-                            let change = grid.getChanges();
-                            grid.save();
-                            change.forEach(e => {
-                                record = grid.get(e.recid);
-                                //you can access node type  by record.nodetype
-                                ctrl_socket.send("node_move\n" + e.recid + " " + record.PositionX + ";" + record.PositionY);
-                            });
-
-                        }
+                {
+                    field: 'PositionY', text: 'PositionY', size: '180px', sortable: true, resizable: true, render: 'int',
+                    editable: { type: 'int', min: 0, max: 32756 }
+                },
+                {
+                    field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
+                    editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
+                    render(record, extra) {
+                        return extra.value?.text || record.nodetype;
                     }
                 },
-                records: [
-                ]
-            })
+            ],
+            toolbar: {
+                items: [
+                    { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
+                    { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
+                    { type: 'break' },
+                    { type: 'button', id: 'showChanges', text: 'Show Changes' },
 
-            window.showChanged = function () {
-                w2popup.open({
-                    title: 'Records Changes',
-                    with: 600,
-                    height: 550,
-                    body: `<pre>${JSON.stringify(grid.getChanges(), null, 4)}</pre>`,
-                    actions: { Ok: w2popup.close }
-                })
-            }
-
-            grid1 = new w2grid({
-                name: 'tracklist',
-                header: 'Track List',
-                box: '#grid1',
-                show: {
-                    toolbar: true,
-                    footer: true,
-                    lineNumbers: true,
-                    toolbarSave: false,
-                    header: true
-                },
-                columns: [
-                    { field: 'recid', text: 'TrackID', size: '50px', sortable: true, resizable: true },
-                    {
-                        field: 'start', text: 'Start', size: '180px', sortable: true, resizable: true,
-                        editable: false
-                    },
-                    {
-                        field: 'end', text: 'End', size: '180px', sortable: true, resizable: true,
-                        editable: false
-                    },
-                    {
-                        field: 'color', text: 'Color', size: '180px', sortable: true, resizable: true,
-                        editable: true,
-                        render(record, extra) {
-                            //return color of the value
-                            //req styling
-                            return '<span style="background-color: ' + (extra.value?.text || record.color) + '">' + (extra.value?.text || record.color) + '</span>';
-                        }
-                    },
-                    {
-                        field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
-                        editable: false,
-                        render(record, extra) {
-                            return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"newtrainfunc(" + record.recid + ");\">New Train</button>";
-                        }
-                    },
                 ],
-                toolbar: {
-                    items: [
-                        //those commented are preserved for color changing
-                        // { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
-                        { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
-                        // { type: 'break' },
-                        // { type: 'button', id: 'showChanges', text: 'Show Changes' },
+                onClick(event) {
+                    if (event.target == 'add') {
+                        let recid = grid.records[grid.records.length - 1].recid + 1
+                        this.owner.add({ recid });
+                        this.owner.scrollIntoView(recid);
+                        this.owner.editField(recid, 1)
+                    }
+                    if (event.target == 'showChanges') {
+                        showChanged()
+                    }
+                    if (event.target == 'pushChanges') {
+                        //get change
+                        let change = grid.getChanges();
+                        grid.save();
+                        change.forEach(e => {
+                            record = grid.get(e.recid);
+                            //you can access node type  by record.nodetype
+                            ctrl_socket.send("node_move\n" + e.recid + " " + record.PositionX + ";" + record.PositionY);
+                        });
 
-                    ],
-                    onClick(event) {
-                        if (event.target == 'add') {
-                            let recid = grid1.records[grid1.records.length - 1].recid + 1;
-                            //not this easy have to open a pop up windows and ask for input, also push change at the same time
-                            w2popup.open({
-                                width: 580,
-                                height: 400,
-                                title: 'Adding new track',
-                                focus: 0,
-                                body: `
+                    }
+                }
+            },
+            records: [
+            ]
+        })
+
+        window.showChanged = function () {
+            w2popup.open({
+                title: 'Records Changes',
+                with: 600,
+                height: 550,
+                body: `<pre>${JSON.stringify(grid.getChanges(), null, 4)}</pre>`,
+                actions: { Ok: w2popup.close }
+            })
+        }
+
+        grid1 = new w2grid({
+            name: 'tracklist',
+            header: 'Track List',
+            box: '#grid1',
+            show: {
+                toolbar: true,
+                footer: true,
+                lineNumbers: true,
+                toolbarSave: false,
+                header: true
+            },
+            columns: [
+                { field: 'recid', text: 'TrackID', size: '50px', sortable: true, resizable: true },
+                {
+                    field: 'start', text: 'Start', size: '180px', sortable: true, resizable: true,
+                    editable: false
+                },
+                {
+                    field: 'end', text: 'End', size: '180px', sortable: true, resizable: true,
+                    editable: false
+                },
+                {
+                    field: 'color', text: 'Color', size: '180px', sortable: true, resizable: true,
+                    editable: true,
+                    render(record, extra) {
+                        //return color of the value
+                        //req styling
+                        return '<span style="background-color: ' + (extra.value?.text || record.color) + '">' + (extra.value?.text || record.color) + '</span>';
+                    }
+                },
+                {
+                    field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
+                    editable: false,
+                    render(record, extra) {
+                        return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"newtrainfunc(" + record.recid + ");\">New Train</button>";
+                    }
+                },
+            ],
+            toolbar: {
+                items: [
+                    //those commented are preserved for color changing
+                    // { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
+                    { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
+                    // { type: 'break' },
+                    // { type: 'button', id: 'showChanges', text: 'Show Changes' },
+
+                ],
+                onClick(event) {
+                    if (event.target == 'add') {
+                        let recid = grid1.records[grid1.records.length - 1].recid + 1;
+                        //not this easy have to open a pop up windows and ask for input, also push change at the same time
+                        w2popup.open({
+                            width: 580,
+                            height: 400,
+                            title: 'Adding new track',
+                            focus: 0,
+                            body: `
             <div class="w2ui-centered" style="line-height: 1.8">
     <div>
        <span tabindex="0">Enter two valid node id to draw a new track.</span>
@@ -194,124 +194,124 @@
        <br>
     </div>
  </div>`,
-                                actions: {
-                                    Ok() {
-                                        console.log('Ok button is clicked');
-                                        ctrl_socket.send(
-                                            'track_new\n' + document.getElementById('inputstartnodeid').value + ' '
-                                            + document.getElementById('inputendnodeid').value
-                                            + ' #' + ((1 << 24) * Math.random() | 0).toString(16).padStart(6, '0')
-                                        );//even user can set color value but still assign random value and ignore user input
-                                        w2popup.close()
-                                        let recid = grid1.records[grid1.records.length - 1].recid + 1
-                                        grid1.scrollIntoView(recid);
-                                    },
-                                    Cancel() {
-                                        w2popup.close()
-                                    }
+                            actions: {
+                                Ok() {
+                                    console.log('Ok button is clicked');
+                                    ctrl_socket.send(
+                                        'track_new\n' + document.getElementById('inputstartnodeid').value + ' '
+                                        + document.getElementById('inputendnodeid').value
+                                        + ' #' + ((1 << 24) * Math.random() | 0).toString(16).padStart(6, '0')
+                                    );//even user can set color value but still assign random value and ignore user input
+                                    w2popup.close()
+                                    let recid = grid1.records[grid1.records.length - 1].recid + 1
+                                    grid1.scrollIntoView(recid);
                                 },
-                                // onKeydown(event) {
-                                //     console.log('keydown', event)
-                                // },
-                                // onMove(event) {
-                                //     console.log('popup moved', event)
-                                // }
-                            });
-                        }
-                        if (event.target == 'showChanges') {
-                            showChanged()
-                        }
-                        if (event.target == 'pushChanges') {
-                            let change = grid1.getChanges();
-                            grid1.save();
-                            change.forEach(e => {
-                                record = grid1.get(e.recid);
-                                //this is for changing color preserved for future
+                                Cancel() {
+                                    w2popup.close()
+                                }
+                            },
+                            // onKeydown(event) {
+                            //     console.log('keydown', event)
+                            // },
+                            // onMove(event) {
+                            //     console.log('popup moved', event)
+                            // }
+                        });
+                    }
+                    if (event.target == 'showChanges') {
+                        showChanged()
+                    }
+                    if (event.target == 'pushChanges') {
+                        let change = grid1.getChanges();
+                        grid1.save();
+                        change.forEach(e => {
+                            record = grid1.get(e.recid);
+                            //this is for changing color preserved for future
 
-                            });
+                        });
 
-                        }
+                    }
+                }
+            },
+            records: [
+            ]
+        });
+        var directionopt = [
+            { id: 1, text: '=>' },
+            { id: 2, text: '<=' }
+        ];
+        grid2 = new w2grid({
+            name: 'trainlist',
+            header: 'Train List',
+            box: '#grid2',
+            show: {
+                toolbar: false,
+                footer: true,
+                lineNumbers: true,
+                toolbarSave: false,
+                header: true
+            },
+            columns: [
+                { field: 'recid', text: 'TrainID', size: '70px', sortable: true, resizable: true, clipboardCopy: true },
+                {
+                    field: 'track', text: 'Track', size: '50px', sortable: true, resizable: true, render: 'int',
+                    editable: false
+                },
+                {
+                    field: 'direction', text: 'Direction', size: '70px', sortable: true, resizable: true,
+                    editable: false, comment: 'w2ui: { style: "background-color: #C2F5B4" }',
+                    //replace rev function
+                    // editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
+                    render(record, extra) {//function rev should do
+                        return record.direction;
                     }
                 },
-                records: [
-                ]
-            });
-            var directionopt = [
-                { id: 1, text: '=>' },
-                { id: 2, text: '<=' }
-            ];
-            grid2 = new w2grid({
-                name: 'trainlist',
-                header: 'Train List',
-                box: '#grid2',
-                show: {
-                    toolbar: false,
-                    footer: true,
-                    lineNumbers: true,
-                    toolbarSave: false,
-                    header: true
-                },
-                columns: [
-                    { field: 'recid', text: 'TrainID', size: '70px', sortable: true, resizable: true, clipboardCopy: true },
-                    {
-                        field: 'track', text: 'Track', size: '50px', sortable: true, resizable: true, render: 'int',
-                        editable: false
-                    },
-                    {
-                        field: 'direction', text: 'Direction', size: '70px', sortable: true, resizable: true,
-                        editable: false, comment: 'w2ui: { style: "background-color: #C2F5B4" }',
-                        //replace rev function
-                        // editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
-                        render(record, extra) {//function rev should do
-                            return record.direction;
-                        }
-                    },
-                    {
-                        field: 'image', text: 'Image', size: '300px', sortable: true, resizable: true,
-                        editable: false,
-                        render(record, extra) {//maybe we can render the image here
-                            return "<span><img src=" + record.image + " alt='train image' style='height:1em;display:inline;'>" + record.image + "</span>";
-                        }
-                    },
-                    {
-                        field: 'position', text: 'Position', size: '160px', sortable: true, resizable: true,
-                        editable: false, clipboardCopy: true
-                    },
-                    {
-                        field: 'progress', text: 'Progress', size: '160px', sortable: true, resizable: true,
-                        editable: false,
-                        render(record, extra) {//maybe we can render the image here
-                            return "<progress value='" + record.progress + "');\"></progress>";
-                        }
-                    },
-                ],
-                onDelete: function (event) {
-                    //! delete function not net impl yet
-                    console.log("delete action trig");
-                    console.log(event);
-                },
-                onDblClick: function (event) {
-                    if (event.detail.column == 2) {
-                        rev(event.detail.recid);
+                {
+                    field: 'image', text: 'Image', size: '300px', sortable: true, resizable: true,
+                    editable: false,
+                    render(record, extra) {//maybe we can render the image here
+                        return "<span><img src=" + record.image + " alt='train image' style='height:1em;display:inline;'>" + record.image + "</span>";
                     }
                 },
-                records: [
-                ]
-            });
-            window.removeRecords = function () {
-                grid.clear()
-                grid.records = [
-                    { recid: 1, fname: 'John', lname: 'Doe', email: 'jdoe@gmail.com', sdate: '4/3/2012' },
-                    { recid: 2, fname: 'Stuart', lname: 'Motzart', email: 'jdoe@gmail.com', sdate: '4/3/2012' }
-                ]
-                grid.total = 2
-                grid.refresh()
-            }
-        </script>
+                {
+                    field: 'position', text: 'Position', size: '160px', sortable: true, resizable: true,
+                    editable: false, clipboardCopy: true
+                },
+                {
+                    field: 'progress', text: 'Progress', size: '160px', sortable: true, resizable: true,
+                    editable: false,
+                    render(record, extra) {//maybe we can render the image here
+                        return "<progress value='" + record.progress + "');\"></progress>";
+                    }
+                },
+            ],
+            onDelete: function (event) {
+                //! delete function not net impl yet
+                console.log("delete action trig");
+                console.log(event);
+            },
+            onDblClick: function (event) {
+                if (event.detail.column == 2) {
+                    rev(event.detail.recid);
+                }
+            },
+            records: [
+            ]
+        });
+        window.removeRecords = function () {
+            grid.clear()
+            grid.records = [
+                { recid: 1, fname: 'John', lname: 'Doe', email: 'jdoe@gmail.com', sdate: '4/3/2012' },
+                { recid: 2, fname: 'Stuart', lname: 'Motzart', email: 'jdoe@gmail.com', sdate: '4/3/2012' }
+            ]
+            grid.total = 2
+            grid.refresh()
+        }
+    </script>
 
-        <div id="status-container"></div>
-        <script defer src="bezier.js"></script>
-        <script defer src="list.js"></script>
+    <div id="status-container"></div>
+    <script defer src="bezier.js"></script>
+    <script defer src="list.js"></script>
 </body>
 
 </html>
