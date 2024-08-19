@@ -4,13 +4,16 @@ let trainlist = new Map();
 let tracklist = new Map();
 let nodelist = new Map();
 
-let trainHTMLTable = document.getElementById("train-table");
-let trackHTMLTable = document.getElementById("track-table");
-
 let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
-
+function newtrainfunc(recid){
+    ctrl_socket.send("train_new\n" + recid + " " + (Math.random() * 200 + 400));
+}
+function rev(trainid){
+    console.log("rev trid")
+    socket.send("click\n" + trainid + " 0,1,0");
+}
 function redraw(time) {
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
@@ -27,7 +30,9 @@ function redraw(time) {
             current_t = 1 - current_t;
         }
         train.current_t = current_t;
-        train.html_row.children[5].children[0].value = current_t;
+        let recordindex = grid2.get(id,true);
+        grid2.records[recordindex].progress=current_t;
+        
 
         // if (current_t > 1.1 || current_t < -0.1) {
         //     train.html_row.remove();
@@ -41,10 +46,11 @@ function redraw(time) {
         train.x = x_pos;
         train.y = y_pos;
         if (Number.isNaN(train.last_pos_time) || time - train.last_pos_time > 200) {
-            train.html_row.children[4].innerText = "(" + train.x.toFixed(1).padStart(6, "0")
+            grid2.records[recordindex].position="(" + train.x.toFixed(1).padStart(6, "0")
                 + "," + train.y.toFixed(1).padStart(6, "0") + ")";
             train.last_pos_time = time;
         }
+        grid2.update();
         // let dresult = bezierDerivative(cordlist, current_t);
         // let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
     });
@@ -77,13 +83,7 @@ function startSocket() {
         explosionList = new Map();
 
 
-        while (trainHTMLTable.rows.length > 1) {
-            trainHTMLTable.deleteRow(-1);
-        }
 
-        while (trackHTMLTable.rows.length > 1) {
-            trackHTMLTable.deleteRow(-1);
-        }
 
         derail_img.remove();
         document.getElementById("status-container").innerText = "Connected! " + new Date();;
@@ -117,63 +117,27 @@ function startSocket() {
                         new_train.x = NaN;
                         new_train.y = NaN;
 
-                        let new_row = trainlist.get(new_train.id)?.html_row;
-                        if (!new_row) {
-                            let row_img_src = document.createElement("pre");
-                            row_img_src.innerText = new_train.img.src;
-                            let row_progress = document.createElement("progress");
-                            row_progress.value = 0.0;
-                            let button_delete = document.createElement("button");
-                            let button_reverse = document.createElement("button");
-                            let button_copyid = document.createElement("button");
-                            let button_pos = document.createElement("button");
-
-                            button_delete.innerText = "DEL";
-                            button_reverse.innerText = "REV";
-                            button_copyid.innerText = "ID";
-                            button_pos.innerText = "POS";
-
-                            new_row = trainHTMLTable.insertRow(-1);
-                            new_row.insertCell(-1); // id
-                            new_row.insertCell(-1); // track
-                            new_row.insertCell(-1); // direction
-                            new_row.insertCell(-1).append(row_img_src); // image src
-                            new_row.insertCell(-1); // position
-                            new_row.insertCell(-1).append(row_progress); // progress
-                            let actions = new_row.insertCell(-1); // actions
-                            actions.append(button_delete);
-                            actions.append(button_reverse);
-                            actions.append(button_copyid);
-                            actions.append(button_pos);
-                        }
-
-                        let cells = new_row.children;
-
-                        cells[0].innerText = Number(args[0]);
-                        cells[1].innerText = new_train.track_id;
+                        let direction;
                         if (args[4] == "forward") {
-                            cells[2].innerText = "=>";
+                            direction = "=>";
                         } else {
-                            cells[2].innerText = "<=";
+                            direction = "<=";
                         }
-                        cells[3].children[0].innerText = new_train.img.src;
-                        cells[4].innerText = "idk";
-                        cells[5].children[0].value = 0.0;
-                        cells[6].children[0].onclick = _ => {
-                            socket.send("click\n" + new_train.id + " 1,0,0");
-                        };
-                        cells[6].children[1].onclick = _ => {
-                            socket.send("click\n" + new_train.id + " 0,1,0");
-                        };
-                        cells[6].children[2].onclick = _ => {
-                            navigator.clipboard.writeText(new_train.id);
-                        };
-                        cells[6].children[3].onclick = _ => {
-                            navigator.clipboard.writeText("(" + new_train.x.toFixed(1).padStart(6, "0")
-                                + "," + new_train.y.toFixed(1).padStart(6, "0") + ")");
-                        };
-
-                        new_train.html_row = new_row;
+                        if(grid2.get(new_train.id)==null){
+                            grid2.add({recid:new_train.id,
+                                track:new_train.track_id,
+                                direction:direction,
+                                image:new_train.img.src,
+                                position:"idk",
+                                progress:0.0});
+                        }else{
+                            let recordindex = grid2.get(new_train.id,true);
+                            grid2.records[recordindex].track=new_train.track_id;
+                            grid2.records[recordindex].direction=direction;
+                            grid2.records[recordindex].image=new_train.img.src;
+                            grid2.update();
+                            //not sure if rest need update ort not
+                        }
 
                         trainlist.set(Number(args[0]), new_train);
                     }
@@ -190,29 +154,15 @@ function startSocket() {
                         new_track.thickness = Number(args[3]);
                         new_track.length = bezierRoughLength(cordlist);
 
-                        let new_row = tracklist.get(new_track.id)?.html_row;
-                        if (!new_row) {
-                            let train_button = document.createElement("button");
-                            train_button.innerText = "TRAIN";
-
-                            new_row = trackHTMLTable.insertRow(-1);
-                            new_row.insertCell(-1); // id
-                            new_row.insertCell(-1); // start
-                            new_row.insertCell(-1); // end
-                            new_row.insertCell(-1).append(train_button); // actions
+                        if(grid1.get(new_track.id)==null){
+                            grid1.add({recid:new_track.id,start:"(" + cordlist[0] + "," + cordlist[1] + ")",end:"(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")",color:new_track.color});
+                        }else{
+                            let recordindex = grid1.get(new_track.id,true);
+                            grid1.records[recordindex].start="(" + cordlist[0] + "," + cordlist[1] + ")";
+                            grid1.records[recordindex].end="(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
+                            grid1.records[recordindex].color=new_track.color;
+                            grid1.update();
                         }
-
-                        let cells = new_row.children;
-                        cells[0].innerText = new_track.id;
-                        cells[0].style.backgroundImage = "linear-gradient(to right,white," + new_track.color + ")";
-                        cells[1].innerText = "(" + cordlist[0] + "," + cordlist[1] + ")";
-                        cells[2].innerText = "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
-                        cells[3].children[0].onclick = () => {
-                            ctrl_socket.send("train_new\n" + new_track.id + " " + (Math.random() * 200 + 400));
-                        };
-
-                        new_track.html_row = new_row;
-
                         tracklist.set(Number(args[0]), new_track);
                     }
                     break;
@@ -286,11 +236,11 @@ function startSocket() {
 
 startSocket();
 
-document.getElementById("delete-all").onclick = () => {
-    trainlist.forEach(train => {
-        socket.send("click\n" + train.id + " 1,0,0");
-    })
-}
+// document.getElementById("delete-all").onclick = () => {//TODO: remove for current version
+//     trainlist.forEach(train => {
+//         socket.send("click\n" + train.id + " 1,0,0");
+//     })
+// }
 
 let track_select = document.getElementById("track-select");
 track_select.addEventListener("click", _ => {
