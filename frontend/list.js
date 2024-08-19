@@ -10,22 +10,7 @@ let trackHTMLTable = document.getElementById("track-table");
 let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
-maindata = [
-    { recid: 1, PositionX: 100, PositionY: 100},
-    { recid: 2, PositionX: 200, PositionY: 454.40},
-    { recid: 3, PositionX: 350, PositionY: 1040},
-    { recid: 4, PositionX: 350, PositionY: 140},
-    { recid: 5, PositionX: 350, PositionY: 500},
-    { recid: 7, PositionX: 350, PositionY: 790},
-    { recid: 8, PositionX: 350, PositionY: 4040},
-    { recid: 9, PositionX: 1000, PositionY: 3400}
-];
-for(i = 1;i<=maindata.length;i++){
-    grid.add({ recid: i});
-}
 
-grid.records=maindata;
-grid.update();
 function redraw(time) {
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
