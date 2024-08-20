@@ -1,17 +1,17 @@
 import { w2grid, w2popup } from 'https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.es6.min.js';
 
-var typeoption = [
+const NODE_TYPE_OPTIONS = [
     { id: 1, text: 'Random' },
     { id: 2, text: 'RoundRobin' },
     { id: 3, text: 'Reverse' },
     { id: 4, text: 'Derailing' },
     { id: 5, text: 'Configurable' }
 ];
-var record;
-gridNode = new w2grid({
+
+let grid_node = new w2grid({
     name: 'nodelist',
     header: 'Node List',
-    box: '#gridNode',
+    box: '#grid-node',
     show: {
         toolbar: true,
         footer: true,
@@ -31,7 +31,7 @@ gridNode = new w2grid({
         },
         {
             field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
-            editable: { type: 'list', items: typeoption, showAll: true, openOnFocus: true, align: 'left' },
+            editable: { type: 'list', items: NODE_TYPE_OPTIONS, showAll: true, openOnFocus: true, align: 'left' },
             render(record, extra) {
                 return extra.value?.text || record.nodetype;
             }
@@ -47,20 +47,22 @@ gridNode = new w2grid({
         ],
         onClick(event) {
             if (event.target == 'add') {
-                let recid = gridNode.records[gridNode.records.length - 1].recid + 1
-                this.owner.add({ recid });
-                this.owner.scrollIntoView(recid);
-                this.owner.editField(recid, 1)
+                ctrl_socket.send("node_new\n0;0 random");
+                // window.setTimeout(() => {
+                //     let last_rec = grid_node.records[grid_node.records.length - 1];
+                //     this.owner.scrollIntoView(last_rec.recid);
+                //     this.owner.editField(last_rec.recid, 1);
+                // }, 100);
             }
             if (event.target == 'showChanges') {
                 showChanged()
             }
             if (event.target == 'pushChanges') {
                 //get change
-                let change = gridNode.getChanges();
-                gridNode.save();
+                let change = grid_node.getChanges();
+                grid_node.save();
                 change.forEach(e => {
-                    record = gridNode.get(e.recid);
+                    let record = grid_node.get(e.recid);
                     //you can access node type  by record.nodetype
                     ctrl_socket.send("node_move\n" + e.recid + " " + record.PositionX + ";" + record.PositionY);
                 });
@@ -77,15 +79,15 @@ window.showChanged = function () {
         title: 'Records Changes',
         with: 600,
         height: 550,
-        body: `<pre>${JSON.stringify(gridNode.getChanges(), null, 4)}</pre>`,
+        body: `<pre>${JSON.stringify(grid_node.getChanges(), null, 4)}</pre>`,
         actions: { Ok: w2popup.close }
     })
 }
 
-gridTrack = new w2grid({
+let grid_track = new w2grid({
     name: 'tracklist',
     header: 'Track List',
-    box: '#gridTrack',
+    box: '#grid-track',
     show: {
         toolbar: true,
         footer: true,
@@ -116,7 +118,7 @@ gridTrack = new w2grid({
             field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
             editable: false,
             render(record, extra) {
-                return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"newtrainfunc(" + record.recid + ");\">New Train</button>";
+                return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendNewTrainRequest(" + record.recid + ");\">New Train</button>";
             }
         },
     ],
@@ -131,7 +133,7 @@ gridTrack = new w2grid({
         ],
         onClick(event) {
             if (event.target == 'add') {
-                let recid = gridTrack.records[gridTrack.records.length - 1].recid + 1;
+                let recid = grid_track.records[grid_track.records.length - 1].recid + 1;
                 //not this easy have to open a pop up windows and ask for input, also push change at the same time
                 w2popup.open({
                     width: 580,
@@ -173,8 +175,8 @@ gridTrack = new w2grid({
                                 + ' #' + ((1 << 24) * Math.random() | 0).toString(16).padStart(6, '0')
                             );//even user can set color value but still assign random value and ignore user input
                             w2popup.close()
-                            let recid = gridTrack.records[gridTrack.records.length - 1].recid + 1
-                            gridTrack.scrollIntoView(recid);
+                            let recid = grid_track.records[grid_track.records.length - 1].recid + 1
+                            grid_track.scrollIntoView(recid);
                         },
                         Cancel() {
                             w2popup.close()
@@ -192,10 +194,10 @@ gridTrack = new w2grid({
                 showChanged()
             }
             if (event.target == 'pushChanges') {
-                let change = gridTrack.getChanges();
-                gridTrack.save();
+                let change = grid_track.getChanges();
+                grid_track.save();
                 change.forEach(e => {
-                    record = gridTrack.get(e.recid);
+                    record = grid_track.get(e.recid);
                     //this is for changing color preserved for future
 
                 });
@@ -206,14 +208,11 @@ gridTrack = new w2grid({
     records: [
     ]
 });
-var directionopt = [
-    { id: 1, text: '=>' },
-    { id: 2, text: '<=' }
-];
-gridTrain = new w2grid({
+
+let grid_train = new w2grid({
     name: 'trainlist',
     header: 'Train List',
-    box: '#gridTrain',
+    box: '#grid-train',
     show: {
         toolbar: false,
         footer: true,
@@ -268,16 +267,6 @@ gridTrain = new w2grid({
     records: [
     ]
 });
-window.removeRecords = function () {
-    gridNode.clear()
-    gridNode.records = [
-        { recid: 1, fname: 'John', lname: 'Doe', email: 'jdoe@gmail.com', sdate: '4/3/2012' },
-        { recid: 2, fname: 'Stuart', lname: 'Motzart', email: 'jdoe@gmail.com', sdate: '4/3/2012' }
-    ]
-    gridNode.total = 2
-    gridNode.refresh()
-}
-
 
 let debugMode = false;
 
@@ -289,8 +278,8 @@ let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
 
-window.newtrainfunc = function newtrainfunc(recid) {
-    ctrl_socket.send("train_new\n" + recid + " " + (Math.random() * 200 + 400));
+window.sendNewTrainRequest = function sendNewTrainRequest(node_id) {
+    ctrl_socket.send("train_new\n" + node_id + " " + (Math.random() * 200 + 400));
 }
 
 function rev(trainid) {
@@ -313,8 +302,8 @@ function redraw(time) {
             current_t = 1 - current_t;
         }
         train.current_t = current_t;
-        let recordindex = gridTrain.get(id, true);
-        gridTrain.records[recordindex].progress = current_t;
+        let recordindex = grid_train.get(id, true);
+        grid_train.records[recordindex].progress = current_t;
 
 
         // if (current_t > 1.1 || current_t < -0.1) {
@@ -329,11 +318,11 @@ function redraw(time) {
         train.x = x_pos;
         train.y = y_pos;
         if (Number.isNaN(train.last_pos_time) || time - train.last_pos_time > 200) {
-            gridTrain.records[recordindex].position = "(" + train.x.toFixed(1).padStart(6, "0")
+            grid_train.records[recordindex].position = "(" + train.x.toFixed(1).padStart(6, "0")
                 + "," + train.y.toFixed(1).padStart(6, "0") + ")";
             train.last_pos_time = time;
         }
-        gridTrain.update();
+        grid_train.update();
         // let dresult = bezierDerivative(cordlist, current_t);
         // let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI;
     });
@@ -406,8 +395,8 @@ function startSocket() {
                         } else {
                             direction = "<=";
                         }
-                        if (gridTrain.get(new_train.id) == null) {
-                            gridTrain.add({
+                        if (grid_train.get(new_train.id) == null) {
+                            grid_train.add({
                                 recid: new_train.id,
                                 track: new_train.track_id,
                                 direction: direction,
@@ -416,11 +405,11 @@ function startSocket() {
                                 progress: 0.0
                             });
                         } else {
-                            let recordindex = gridTrain.get(new_train.id, true);
-                            gridTrain.records[recordindex].track = new_train.track_id;
-                            gridTrain.records[recordindex].direction = direction;
-                            gridTrain.records[recordindex].image = new_train.img.src;
-                            gridTrain.update();
+                            let recordindex = grid_train.get(new_train.id, true);
+                            grid_train.records[recordindex].track = new_train.track_id;
+                            grid_train.records[recordindex].direction = direction;
+                            grid_train.records[recordindex].image = new_train.img.src;
+                            grid_train.update();
                             //not sure if rest need update ort not
                         }
 
@@ -439,14 +428,14 @@ function startSocket() {
                         new_track.thickness = Number(args[3]);
                         new_track.length = bezierRoughLength(cordlist);
 
-                        if (gridTrack.get(new_track.id) == null) {
-                            gridTrack.add({ recid: new_track.id, start: "(" + cordlist[0] + "," + cordlist[1] + ")", end: "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")", color: new_track.color });
+                        if (grid_track.get(new_track.id) == null) {
+                            grid_track.add({ recid: new_track.id, start: "(" + cordlist[0] + "," + cordlist[1] + ")", end: "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")", color: new_track.color });
                         } else {
-                            let recordindex = gridTrack.get(new_track.id, true);
-                            gridTrack.records[recordindex].start = "(" + cordlist[0] + "," + cordlist[1] + ")";
-                            gridTrack.records[recordindex].end = "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
-                            gridTrack.records[recordindex].color = new_track.color;
-                            gridTrack.update();
+                            let recordindex = grid_track.get(new_track.id, true);
+                            grid_track.records[recordindex].start = "(" + cordlist[0] + "," + cordlist[1] + ")";
+                            grid_track.records[recordindex].end = "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
+                            grid_track.records[recordindex].color = new_track.color;
+                            grid_track.update();
                         }
                         tracklist.set(Number(args[0]), new_track);
                     }
@@ -463,14 +452,14 @@ function startSocket() {
                         if (!new_row) {
                             //! Do not support multi control
                             //if not exist
-                            if (gridNode.get(new_node.id) == null) {
-                                gridNode.add({ recid: new_node.id, PositionX: new_node.x, PositionY: new_node.y, nodetype: "Random" });
+                            if (grid_node.get(new_node.id) == null) {
+                                grid_node.add({ recid: new_node.id, PositionX: new_node.x, PositionY: new_node.y, nodetype: "Random" });
                             } else {
-                                let recordindex = gridNode.get(new_node.id, true);
-                                gridNode.records[recordindex].PositionX = new_node.x;
-                                gridNode.records[recordindex].PositionY = new_node.y;
-                                gridNode.records[recordindex].nodetype = "Random";
-                                gridNode.update();
+                                let recordindex = grid_node.get(new_node.id, true);
+                                grid_node.records[recordindex].PositionX = new_node.x;
+                                grid_node.records[recordindex].PositionY = new_node.y;
+                                grid_node.records[recordindex].nodetype = "Random";
+                                grid_node.update();
                             }
 
                         }
