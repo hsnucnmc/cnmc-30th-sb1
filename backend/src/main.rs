@@ -70,6 +70,12 @@ async fn main() {
                 )),
             )
             .route(
+                "/old_list",
+                axum::routing::get_service(tower_http::services::ServeFile::new(
+                    "frontend/old_list.html",
+                )),
+            )
+            .route(
                 "/control",
                 axum::routing::get_service(tower_http::services::ServeFile::new(
                     "frontend/control.html",

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=m, initial-scale=1.0">
+    <link rel="stylesheet" href="old_list.css">
+    <title>Train List</title>
+</head>
+
+<body>
+    <div style="display: flex; flex-flow: row nowrap; align-content:center;">
+        <h2 style="margin-right: 100px;">Train List</h2>
+        <button id="delete-all" style="margin-right: 100px;">DELETE ALL TRAIN</button>
+        <select id="track-select">
+            <option value="">--DEFAULT TRACK--</option>
+        </select>
+        <button onclick="fetch('/force-derail/' + document.getElementById('track-select').value)">RESTART
+            EVERYTHING</button>
+    </div>
+    <table id="node-table">
+        <colgroup span="10"></colgroup>
+        <tr>
+            <th>NodeID</th>
+            <th colspan="2">Position</th>
+            <th>Actions</th>
+        </tr>
+    </table>
+    <div style="display: flex; flex-flow: row nowrap; align-content:center;">
+        <label style="margin-right: 20px;">X: </label><input type="number" id="create-node-x"
+            style="margin-right: 100px;">
+        <label style="margin-right: 20px;">Y: </label><input type="number" id="create-node-y"
+            style="margin-right: 100px;">
+        <select id="create-node-type" style="margin-right: 20px;">
+            <option value="random">Random</option>
+            <option value="roundrobin">RoundRobin</option>
+            <option value="reverse">Reverse</option>
+            <option value="derail">Derailing</option>
+            <option value="configurable">Configurable</option>
+        </select>
+        <button onclick="
+            if (
+                document.getElementById('create-node-x').value != '' &&
+                document.getElementById('create-node-y').value != ''
+            )
+                ctrl_socket.send(
+                    'node_new\n'+ document.getElementById('create-node-x').value + ';'
+                    + document.getElementById('create-node-y').value +' '
+                    + document.getElementById('create-node-type').value
+                )
+        ">CREATE NODE</button>
+    </div>
+    <table id="track-table">
+        <colgroup span="10"></colgroup>
+        <tr>
+            <th>Track</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Actions</th>
+        </tr>
+    </table>
+    <div style="display: flex; flex-flow: row nowrap; align-content:center;">
+        <label style="margin-right: 20px;">Start: </label><input type="number" id="create-track-p1"
+            style="margin-right: 100px;">
+        <label style="margin-right: 20px;">End: </label> <input type="number" id="create-track-p2"
+            style="margin-right: 100px;">
+        <button onclick="
+            if (
+                document.getElementById('create-track-p1').value != '' &&
+                document.getElementById('create-track-p2').value != ''
+            )
+                ctrl_socket.send(
+                    'track_new\n'+ document.getElementById('create-track-p1').value + ' '
+                    + document.getElementById('create-track-p2').value
+                    + ' #' + ((1 << 24) * Math.random() | 0).toString(16).padStart(6, '0')
+                )
+        ">CREATE TRACK</button>
+    </div>
+    <table id="train-table">
+        <colgroup span="10"></colgroup>
+        <tr>
+            <th>TrainID</th>
+            <th>Track</th>
+            <th>Direction</th>
+            <th>Image</th>
+            <th>Position</th>
+            <th>Progress</th>
+            <th>Actions</th>
+        </tr>
+    </table>
+    <div id="status-container"></div>
+    <script defer src="bezier.js"></script>
+    <script defer src="old_list.js"></script>
+</body>
+
+</html>
