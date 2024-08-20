@@ -21,34 +21,34 @@ let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("
         param_changed = true;
     }
 
-    if (param_changed) {
-        document.cookie = "relative_x=" + relative_x;
-        document.cookie = "relative_y=" + relative_y;
-        window.history.replaceState(null, "", window.location.pathname);
+    let ask_attempt = 0;
+    while (Number.isNaN(relative_x) || relative_x < -4000 || 4000 < relative_x) {
+        relative_x = Number(window.prompt("Relative x?", "0"));
+        ask_attempt++;
+        if (ask_attempt > 10) {
+            relative_x = 0;
+        }
     }
-}
+    
+    ask_attempt = 0;
+    while (Number.isNaN(relative_y) || relative_y < -2000 || 2000 < relative_y) {
+        relative_y = Number(window.prompt("Relative y?", "0"));
+        ask_attempt++;
+        if (ask_attempt > 10) {
+            relative_y = 0;
+        }
+    }
 
-let ask_attempt = 0;
+    document.cookie = "relative_x=" + relative_x;
+    document.cookie = "relative_y=" + relative_y;
+    if (param_changed) {
+        window.history.replaceState(null, "", window.location.pathname);
+    }    
+}    
+
 
 let debugMode = false;
 let dragMode = true;
-
-while (Number.isNaN(relative_x) || relative_x < -4000 || 4000 < relative_x) {
-    relative_x = Number(window.prompt("Relative x?", "0"));
-    ask_attempt++;
-    if (ask_attempt > 10) {
-        relative_x = 0;
-    }
-}
-
-ask_attempt = 0;
-while (Number.isNaN(relative_y) || relative_y < -2000 || 2000 < relative_y) {
-    relative_y = Number(window.prompt("Relative y?", "0"));
-    ask_attempt++;
-    if (ask_attempt > 10) {
-        relative_y = 0;
-    }
-}
 
 // TODO: ask for x y boundaries and scale track base on view port size
 document.cookie = "relative_x=" + relative_x;
