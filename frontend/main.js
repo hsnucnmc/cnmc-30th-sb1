@@ -4,6 +4,30 @@ const train_height = 263 / 4;
 let relative_x = Number(document.cookie.split("; ").find(row => row.startsWith("relative_x="))?.split("=")[1]);
 let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("relative_y="))?.split("=")[1]);
 
+{
+    const urlParams = new URLSearchParams(window.location.search);
+    let param_x = urlParams.get('x');
+    let param_changed = false;
+    if (param_x != undefined && !Number.isNaN(param_x)) {
+        relative_x = param_x;
+        urlParams.delete('x');
+        param_changed = true;
+    }
+
+    let param_y = urlParams.get('y');
+    if (param_y != undefined && !Number.isNaN(param_y)) {
+        relative_y = param_y;
+        urlParams.delete('y');
+        param_changed = true;
+    }
+
+    if (param_changed) {
+        document.cookie = "relative_x=" + relative_x;
+        document.cookie = "relative_y=" + relative_y;
+        window.history.replaceState(null, "", window.location.pathname);
+    }
+}
+
 let ask_attempt = 0;
 
 let debugMode = false;
@@ -363,14 +387,14 @@ window.addEventListener("touchstart", e => {
     if (!dragMode)
         return;
     for (touch of e.targetTouches) {
-        current_touches.set(touch.identifier, {x: touch.screenX, y: touch.screenY});
+        current_touches.set(touch.identifier, { x: touch.screenX, y: touch.screenY });
     }
 });
 
 window.addEventListener("touchmove", e => {
     for (touch of e.targetTouches) {
         let previous = current_touches.get(touch.identifier);
-        let current = {x: touch.screenX, y: touch.screenY};
+        let current = { x: touch.screenX, y: touch.screenY };
         current_touches.set(touch.identifier, current);
         relative_x -= current.x - previous.x;
         relative_y -= current.y - previous.y;
