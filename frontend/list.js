@@ -42,17 +42,17 @@ let grid_node = new w2grid({
             { type: 'button', id: 'pushChanges', text: 'Push Changes', icon: 'w2ui-icon-check' },
             { id: 'add', type: 'button', text: 'Add Record', icon: 'w2ui-icon-plus' },
             { type: 'break' },
-            { type: 'button', id: 'showChanges', text: 'Show Changes' },
+            { type: 'button', id: 'showChanges', text: 'Show Changes', icon: 'w2ui-icon-search' },
 
         ],
         onClick(event) {
             if (event.target == 'add') {
                 ctrl_socket.send("node_new\n0;0 random");
-                // window.setTimeout(() => {
-                //     let last_rec = grid_node.records[grid_node.records.length - 1];
-                //     this.owner.scrollIntoView(last_rec.recid);
-                //     this.owner.editField(last_rec.recid, 1);
-                // }, 100);
+                window.setTimeout(() => {
+                    let last_rec = grid_node.records[grid_node.records.length - 1];
+                    this.owner.scrollIntoView(last_rec.recid);
+                    this.owner.editField(last_rec.recid, 1);
+                }, 100);
             }
             if (event.target == 'showChanges') {
                 showChanged()
@@ -214,7 +214,7 @@ let grid_train = new w2grid({
     header: 'Train List',
     box: '#grid-train',
     show: {
-        toolbar: false,
+        toolbar: true,
         footer: true,
         lineNumbers: true,
         toolbarSave: false,
@@ -254,14 +254,49 @@ let grid_train = new w2grid({
             }
         },
     ],
-    onDelete: function (event) {
-        //! delete function not net impl yet
-        console.log("delete action trig");
-        console.log(event);
-    },
     onDblClick: function (event) {
         if (event.detail.column == 2) {
-            rev(event.detail.recid);
+            sendReverseTrainRequest(event.detail.recid);
+        }
+        if (event.detail.column == 4) {
+            console.log("/?x=" + Math.floor(trainlist.get(event.detail.recid).x - window.innerWidth / 2) + "&y=" + Math.floor(trainlist.get(event.detail.recid).y - window.innerHeight / 2), 'view-train-pos');
+            window.open("/?x=" + Math.floor(trainlist.get(event.detail.recid).x - window.innerWidth / 2) + "&y=" + Math.floor(trainlist.get(event.detail.recid).y - window.innerHeight / 2), 'view-train-pos').focus();
+        }
+    },
+    toolbar: {
+        items: [
+            { id: 'del_all', type: 'button', text: 'Delete All', icon: 'w2ui-icon-cross' },
+        ],
+        onClick(event) {
+            if (event.target == 'del_all') {
+                let recid = grid_track.records[grid_track.records.length - 1].recid + 1;
+                //not this easy have to open a pop up windows and ask for input, also push change at the same time
+                w2popup.open({
+                    width: 580,
+                    height: 400,
+                    title: 'Deleting all trains',
+                    focus: 0,
+                    body: `
+                        <div class="w2ui-centered text-xl" style="line-height: 1.8">
+                        <div>
+                        <span tabindex="0">Are you sure to delete ALL trains?</span><br><br><span>
+                        There's currently `
+                        + trainlist.size +
+                        ` train(s) in the list.</span></div>
+                        </div>`,
+                    actions: {
+                        Ok() {
+                            trainlist.forEach(train => {
+                                socket.send("click\n" + train.id + " 1,0,0");
+                            });
+                            w2popup.close()
+                        },
+                        Cancel() {
+                            w2popup.close()
+                        }
+                    },
+                });
+            }
         }
     },
     records: [
@@ -278,14 +313,14 @@ let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
 
-window.sendNewTrainRequest = function sendNewTrainRequest(node_id) {
-    ctrl_socket.send("train_new\n" + node_id + " " + (Math.random() * 200 + 400));
+window.sendNewTrainRequest = function sendNewTrainRequest(track_id) {
+    ctrl_socket.send("train_new\n" + track_id + " " + (Math.random() * 200 + 400));
 }
 
-function rev(trainid) {
-    console.log("rev trid")
-    socket.send("click\n" + trainid + " 0,1,0");
+window.sendReverseTrainRequest = function sendReverseTrainRequest(train_id) {
+    socket.send("click\n" + train_id + " 0,1,0");
 }
+
 function redraw(time) {
     trainlist.forEach((train, id) => {
         if (Number.isNaN(train.movement_start)) {
@@ -479,22 +514,7 @@ function startSocket() {
                     removed_train?.html_row?.remove();
                     trainlist.delete(removed_id);
 
-                    // new_explosion.start = NaN;
-                    // new_explosion.x = removed_train.x;
-                    // new_explosion.y = removed_train.y;
-                    // let cordlist = tracklist.get(removed_train.track_id).cordlist;
-                    // new_explosion.dxdy = bezierDerivative(cordlist, removed_train.current_t);
-                    // new_explosion.dx = bezierDerivative(cordlist, removed_train.current_t).dx;
-                    // new_explosion.dy = bezierDerivative(cordlist, removed_train.current_t).dy;
-                    // new_explosion.cordlist = cordlist;
-                    // new_explosion.type = removal_type; // e s d v t
-                    // new_explosion.train = removed_train;
-
-                    // silent explosion require no further animation
-                    // if (removal_type != "s") {
-                    //     explosionList.set(explosionSerial, new_explosion);
-                    // }
-                    // explosionSerial++;
+                    grid_train.remove(removed_id)
 
                     break;
             }
@@ -509,12 +529,6 @@ function startSocket() {
 }
 
 startSocket();
-
-// document.getElementById("delete-all").onclick = () => {//TODO: remove for current version
-//     trainlist.forEach(train => {
-//         socket.send("click\n" + train.id + " 1,0,0");
-//     })
-// }
 
 let track_select = document.getElementById("track-select");
 track_select.addEventListener("click", _ => {
