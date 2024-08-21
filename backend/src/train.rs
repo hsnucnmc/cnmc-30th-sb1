@@ -563,7 +563,7 @@ fn config_test_stuff() -> (
     BTreeMap<TrackID, TrackPiece>,
     BTreeMap<TrainID, TrainInstance>,
 ) {
-    let (mut nodes, mut tracks, mut trains) = eempty_stuff();
+    let (mut nodes, mut tracks, mut trains) = empty_stuff();
     nodes.insert(0, {
         let routing_info = RoutingInfo {
             configured: true,
