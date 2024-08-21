@@ -267,7 +267,7 @@ impl TrainInstance {
     }
 }
 
-fn eempty_stuff() -> (
+fn empty_stuff() -> (
     BTreeMap<NodeID, Node>,
     BTreeMap<TrackID, TrackPiece>,
     BTreeMap<TrainID, TrainInstance>,
@@ -558,7 +558,7 @@ fn test_stuff() -> (
     (nodes, tracks, trains)
 }
 
-fn empty_stuff() -> (
+fn config_test_stuff() -> (
     BTreeMap<NodeID, Node>,
     BTreeMap<TrackID, TrackPiece>,
     BTreeMap<TrainID, TrainInstance>,
