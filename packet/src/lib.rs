@@ -46,7 +46,7 @@ impl std::str::FromStr for Coord {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Direction {
     Forward,
     Backward,
