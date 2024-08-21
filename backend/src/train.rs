@@ -7,12 +7,69 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use packet::*;
 
-#[derive(Serialize, Deserialize, PartialEq)]
+use crate::routing::{AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingType};
+
+#[derive(PartialEq, Clone, Serialize)]
 struct Node {
     id: NodeID,
     coord: Coord,
     connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
     conn_type: NodeType,
+    routing_info: Option<RoutingInfo>,
+    #[serde(skip)]
+    router: Option<BuiltRouter>,
+}
+
+impl Node {
+    fn strip(self) -> StrippedNode {
+        StrippedNode {
+            id: self.id,
+            coord: self.coord,
+            connections: self.connections,
+            conn_type: self.conn_type,
+            routing_info: self.routing_info,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq)]
+struct StrippedNode {
+    id: NodeID,
+    coord: Coord,
+    connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+    conn_type: NodeType,
+    routing_info: Option<RoutingInfo>,
+}
+
+impl StrippedNode {
+    fn build(self) -> Node {
+        Node {
+            id: self.id,
+            coord: self.coord,
+            connections: self.connections,
+            conn_type: self.conn_type,
+            router: match &self.routing_info {
+                Some(routing_info) => Some(routing_info.clone().build()),
+                None => None,
+            },
+            routing_info: self.routing_info,
+        }
+    }
+
+    fn build_clean(&self) -> Node {
+        let router = self
+            .routing_info
+            .as_ref()
+            .and_then(|x| Some(x.clone().build()));
+        Node {
+            id: self.id,
+            coord: self.coord,
+            connections: BTreeMap::new(),
+            conn_type: self.conn_type,
+            router,
+            routing_info: self.routing_info.clone(),
+        }
+    }
 }
 
 impl Node {
@@ -210,7 +267,7 @@ impl TrainInstance {
     }
 }
 
-fn empty_stuff() -> (
+fn eempty_stuff() -> (
     BTreeMap<NodeID, Node>,
     BTreeMap<TrackID, TrackPiece>,
     BTreeMap<TrainID, TrainInstance>,
@@ -359,6 +416,8 @@ fn test_stuff() -> (
                     coord,
                     connections: BTreeMap::new(),
                     conn_type: NodeType::Random,
+                    routing_info: None,
+                    router: None,
                 },
             );
         }
@@ -462,6 +521,8 @@ fn test_stuff() -> (
                 coord: Coord(2800f64, 100f64),
                 connections: BTreeMap::new(),
                 conn_type: NodeType::Random,
+                routing_info: None,
+                router: None,
             },
         );
 
@@ -493,6 +554,63 @@ fn test_stuff() -> (
 
         tracks
     };
+
+    (nodes, tracks, trains)
+}
+
+fn empty_stuff() -> (
+    BTreeMap<NodeID, Node>,
+    BTreeMap<TrackID, TrackPiece>,
+    BTreeMap<TrainID, TrainInstance>,
+) {
+    let (mut nodes, mut tracks, mut trains) = eempty_stuff();
+    nodes.insert(0, {
+        let routing_info = RoutingInfo {
+            configured: true,
+            default_state: 0,
+            states: vec![(
+                0,
+                crate::routing::RoutingState {
+                    after_click: crate::routing::AfterEffects::Nothing,
+                    forward_routings: vec![
+                        (
+                            3,
+                            (
+                                CompoundRoutingType::Simple(RoutingType::Track((
+                                    0,
+                                    Direction::Forward,
+                                ))),
+                                AfterEffects::Nothing,
+                            ),
+                        ),
+                        (
+                            4,
+                            (
+                                CompoundRoutingType::Simple(RoutingType::Track((
+                                    0,
+                                    Direction::Forward,
+                                ))),
+                                AfterEffects::Nothing,
+                            ),
+                        ),
+                    ]
+                    .into_iter()
+                    .collect(),
+                    backward_routings: vec![].into_iter().collect(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+        Node {
+            id: 0,
+            coord: Coord(0.0, 0.0),
+            connections: BTreeMap::new(),
+            conn_type: NodeType::Configurable,
+            routing_info: Some(routing_info.clone()),
+            router: Some(routing_info.build()),
+        }
+    });
 
     (nodes, tracks, trains)
 }
@@ -556,7 +674,7 @@ fn read_stuff_from_name(
         return Err("Track name isn't found in existing.json");
     }
 
-    let loaded_nodes: BTreeMap<u32, Node> = match serde_json::from_str(
+    let loaded_nodes: BTreeMap<u32, StrippedNode> = match serde_json::from_str(
         match &read_to_string(format!("tracks/nodes_{}.json", track_name)) {
             Ok(file) => file,
             Err(_) => {
@@ -589,15 +707,7 @@ fn read_stuff_from_name(
 
     let mut nodes = BTreeMap::new();
     for (id, node) in &loaded_nodes {
-        nodes.insert(
-            *id,
-            Node {
-                id: *id,
-                coord: node.coord,
-                connections: BTreeMap::new(),
-                conn_type: node.conn_type,
-            },
-        );
+        nodes.insert(node.id, node.build_clean());
     }
 
     let mut tracks = BTreeMap::new();
@@ -624,13 +734,77 @@ fn read_stuff_from_name(
     }
 
     let trains = BTreeMap::new();
-    if loaded_nodes != nodes {
+    if loaded_nodes
+        != nodes
+            .iter()
+            .map(|(id, node)| (*id, node.clone().strip()))
+            .collect()
+    {
         println!("Possibly inconsistency existing in loaded nodes but using it anyway");
     }
     if loaded_tracks != tracks {
         println!("Possibly inconsistency existing in loaded nodes but using it anyway");
     }
     Ok((nodes, tracks, trains))
+}
+
+fn node_list_request_handler(
+    response_tx: oneshot::Sender<Vec<(NodeID, Coord)>>,
+    nodes: &BTreeMap<NodeID, Node>,
+) {
+    let node_list = nodes.iter().map(|(id, node)| (*id, node.coord)).collect();
+    let _ = response_tx.send(node_list);
+}
+
+fn node_get_type_request_handler(
+    response_tx: oneshot::Sender<Option<NodeType>>,
+    node_id: NodeID,
+    nodes: &BTreeMap<NodeID, Node>,
+) {
+    let _ = response_tx.send(if let Some(node) = nodes.get(&node_id) {
+        Some(node.conn_type)
+    } else {
+        None
+    });
+}
+
+fn node_get_routing_request_handler(
+    response_tx: oneshot::Sender<Option<RoutingInfo>>,
+    node_id: NodeID,
+    nodes: &BTreeMap<NodeID, Node>,
+) {
+    let _ = response_tx.send(if let Some(node) = nodes.get(&node_id) {
+        node.routing_info.clone()
+    } else {
+        None
+    });
+}
+
+fn node_set_routing_request_handler(
+    node_id: NodeID,
+    routing_info: RoutingInfo,
+    nodes: &mut BTreeMap<NodeID, Node>,
+    tracks: &BTreeMap<TrackID, TrackPiece>,
+) {
+    if let Some(node) = nodes.get_mut(&node_id) {
+        if routing_info.check().is_err() {
+            return;
+        }
+
+        for routing_type in routing_info.outcomes() {
+            match routing_type {
+                RoutingType::Track((track_id, _)) => {
+                    if !tracks.contains_key(&track_id) {
+                        return;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        node.routing_info = Some(routing_info.clone());
+        node.router = Some(routing_info.build());
+    }
 }
 
 pub async fn train_master(
@@ -643,6 +817,10 @@ pub async fn train_master(
     mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
     valid_id_tx: watch::Sender<BTreeSet<TrainID>>,
     mut derail_rx: mpsc::Receiver<()>,
+    mut list_nodes_request_rx: mpsc::Receiver<oneshot::Sender<Vec<(NodeID, Coord)>>>,
+    mut node_type_request_rx: mpsc::Receiver<(NodeID, oneshot::Sender<Option<NodeType>>)>,
+    mut node_get_routing_request_rx: mpsc::Receiver<(NodeID, oneshot::Sender<Option<RoutingInfo>>)>,
+    mut node_set_routing_request_rx: mpsc::Receiver<(NodeID, RoutingInfo)>,
     using_track: String,
 ) {
     if using_track != "" {
@@ -746,12 +924,19 @@ pub async fn train_master(
                 let ctrl_packet = ctrl_packet.unwrap();
                 match ctrl_packet {
                     CtrlPacket::NewNode(coord, conn_type) => {
-                        let new_node = Node {
+                        let mut new_node = Node {
                             id: next_node_serial,
                             coord,
                             connections: BTreeMap::new(),
-                            conn_type
+                            conn_type,
+                            routing_info: None,
+                            router: None,
                         };
+
+                        if conn_type == NodeType::Configurable {
+                            new_node.routing_info = Some(RoutingInfo::default());
+                            new_node.router = Some(RoutingInfo::default().build());
+                        }
 
                         for channel in viewer_channels.values() {
                             channel.send(new_node.to_packet()).await;
@@ -910,6 +1095,25 @@ pub async fn train_master(
                         }
                     }
                 }
+            }
+
+            request = list_nodes_request_rx.recv() => {
+                node_list_request_handler(request.unwrap(), &nodes);
+            }
+
+            request = node_type_request_rx.recv() => {
+                let request = request.unwrap();
+                node_get_type_request_handler(request.1, request.0, &nodes);
+            }
+
+            request = node_get_routing_request_rx.recv() => {
+                let request = request.unwrap();
+                node_get_routing_request_handler(request.1, request.0, &nodes);
+            }
+
+            request = node_set_routing_request_rx.recv() => {
+                let request = request.unwrap();
+                node_set_routing_request_handler(request.0, request.1, &mut nodes, &tracks);
             }
 
             _ = derail_rx.recv() => {

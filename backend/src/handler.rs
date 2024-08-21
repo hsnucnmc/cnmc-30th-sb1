@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::{routing::RoutingInfo, AppState};
 use axum::{
-    extract::{ws, Path, State}, http::response, response::IntoResponse, Json
+    extract::{ws, Path, State}, response::IntoResponse, Json
 };
 use packet::*;
 use tokio::sync::oneshot;
@@ -100,7 +100,10 @@ pub async fn node_type_handler(
     };
 
     Json(match receiver.await {
-        Ok(node_type) => node_type,
+        Ok(Some(node_type)) => node_type,
+        Ok(None) => {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
         Err(_) => {
             println!("Failed receiving node type");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -123,7 +126,10 @@ pub async fn node_get_routing_handler(
     };
 
     Json(match receiver.await {
-        Ok(Some(list)) => list,
+        Ok(Some(routing_info)) => {
+            println!("{:?}", serde_json::to_string(&routing_info));
+            routing_info
+        },
         Ok(None) => {
             return axum::http::StatusCode::NOT_FOUND.into_response();
         }
@@ -145,6 +151,26 @@ pub async fn node_set_routing_handler(
         *response.body_mut() = err.to_string().into_bytes().into();
         *response.status_mut() = axum::http::StatusCode::UNPROCESSABLE_ENTITY;
         return response;
+    }
+
+    let (sender, receiver) = oneshot::channel();
+    match state.node_get_routing_request.send((node_id, sender)).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed receiving current node routing info");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    match receiver.await {
+        Ok(Some(_)) => {},
+        Ok(None) => {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+        Err(_) => {
+            println!("Failed receiving node routing info");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     }
 
     match state

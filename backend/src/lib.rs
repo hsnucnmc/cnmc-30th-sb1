@@ -19,7 +19,7 @@ pub struct AppState {
     pub valid_id: watch::Receiver<BTreeSet<TrainID>>,
     pub derail_tx: mpsc::Sender<()>,
     pub list_nodes_request: mpsc::Sender<oneshot::Sender<Vec<(NodeID, Coord)>>>,
-    pub node_type_request: mpsc::Sender<(NodeID, oneshot::Sender<NodeType>)>,
+    pub node_type_request: mpsc::Sender<(NodeID, oneshot::Sender<Option<NodeType>>)>,
     pub node_get_routing_request: mpsc::Sender<(NodeID, oneshot::Sender<Option<RoutingInfo>>)>,
     pub node_set_routing_request: mpsc::Sender<(NodeID, RoutingInfo)>,
     pub next_track: std::sync::Arc<tokio::sync::Mutex<Option<String>>>,

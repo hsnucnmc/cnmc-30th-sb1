@@ -20,6 +20,10 @@ async fn main() {
         let (valid_id_tx, valid_id_rx) = watch::channel(BTreeSet::new());
 
         let (derail_tx, derail_rx) = mpsc::channel(1);
+        let (list_nodes_request_tx, list_nodes_request_rx) = mpsc::channel(16);
+        let (node_type_request_tx, node_type_request_rx) = mpsc::channel(16);
+        let (node_get_routing_request_tx, node_get_routing_request_rx) = mpsc::channel(16);
+        let (node_set_routing_request_tx, node_set_routing_request_rx) = mpsc::channel(16);
 
         let next_track_mutex = tokio::sync::Mutex::new(Some(String::new()));
         let next_track_arc = std::sync::Arc::new(next_track_mutex);
@@ -31,6 +35,10 @@ async fn main() {
                 ctrl_request_rx,
                 valid_id_tx,
                 derail_rx,
+                list_nodes_request_rx,
+                node_type_request_rx,
+                node_get_routing_request_rx,
+                node_set_routing_request_rx,
                 using_track,
             )
             .await
@@ -38,22 +46,15 @@ async fn main() {
 
         // build our application with a single route
 
-        let (list_nodes_request_sender, list_nodes_request_receiver) = mpsc::channel(16);
-        let (node_type_request_sender, node_type_request_receiver) = mpsc::channel(16);
-        let (node_get_routing_request_sender, node_get_routing_request_receiver) =
-            mpsc::channel(16);
-        let (node_set_routing_request_sender, node_set_routing_request_receiver) =
-            mpsc::channel(16);
-
         let shared_state = AppState {
             view_request_tx,
             valid_id: valid_id_rx,
             ctrl_request_tx,
             derail_tx,
-            list_nodes_request: list_nodes_request_sender,
-            node_type_request: node_type_request_sender,
-            node_get_routing_request: node_get_routing_request_sender,
-            node_set_routing_request: node_set_routing_request_sender,
+            list_nodes_request: list_nodes_request_tx,
+            node_type_request: node_type_request_tx,
+            node_get_routing_request: node_get_routing_request_tx,
+            node_set_routing_request: node_set_routing_request_tx,
             next_track: next_track_arc.clone(),
         };
 
@@ -105,7 +106,6 @@ async fn main() {
             )
             .route("/force-derail/:id", get(handler::derail_handler))
             .route("/nodes", get(handler::list_nodes_handler))
-            .route("/nodes/:id", get(handler::list_nodes_handler))
             .route("/nodes/:id", get(handler::node_type_handler))
             .route(
                 "/nodes/:id/routing",

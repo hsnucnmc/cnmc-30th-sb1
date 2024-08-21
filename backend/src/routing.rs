@@ -35,7 +35,7 @@ impl CompoundRoutingType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum BuiltCompoundRoutingType {
     Simple(RoutingType),
     Weighted(WeightedIndex<f64>, Vec<RoutingType>),
@@ -73,7 +73,7 @@ impl AfterEffects {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum BuiltAfterEffects {
     Nothing,
     SwitchState(RoutingStateID),
@@ -93,7 +93,8 @@ impl Distribution<Option<RoutingStateID>> for BuiltAfterEffects {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoutingState {
     pub after_click: AfterEffects,
-    pub routings: BTreeMap<(TrackID, Direction), (CompoundRoutingType, AfterEffects)>,
+    pub forward_routings: BTreeMap<TrackID, (CompoundRoutingType, AfterEffects)>,
+    pub backward_routings: BTreeMap<TrackID, (CompoundRoutingType, AfterEffects)>,
 }
 
 impl RoutingState {
@@ -101,24 +102,55 @@ impl RoutingState {
         BuiltRoutingState {
             after_click: self.after_click.build(),
             routings: self
-                .routings
+                .forward_routings
                 .into_iter()
-                .map(|(incoming, (routing, ae))| (incoming, (routing.build(), ae.build())))
+                .map(|(incoming, (routing, ae))| {
+                    (
+                        (incoming, Direction::Forward),
+                        (routing.build(), ae.build()),
+                    )
+                })
+                .chain(
+                    self.backward_routings
+                        .into_iter()
+                        .map(|(incoming, (routing, ae))| {
+                            (
+                                (incoming, Direction::Backward),
+                                (routing.build(), ae.build()),
+                            )
+                        }),
+                )
                 .collect(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct BuiltRoutingState {
     after_click: BuiltAfterEffects,
     routings: BTreeMap<(TrackID, Direction), (BuiltCompoundRoutingType, BuiltAfterEffects)>,
 }
 
+fn configured_default() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoutingInfo {
+    #[serde(skip_serializing, default = "configured_default")]
+    pub configured: bool,
     pub default_state: RoutingStateID,
     pub states: BTreeMap<RoutingStateID, RoutingState>,
+}
+
+impl Default for RoutingInfo {
+    fn default() -> Self {
+        Self {
+            configured: false,
+            default_state: 0,
+            states: BTreeMap::new(),
+        }
+    }
 }
 
 impl RoutingInfo {
@@ -156,7 +188,56 @@ impl RoutingInfo {
                 }
             }
 
-            for (_, (routing, effects)) in &state.routings {
+            for (_, (routing, effects)) in &state.forward_routings {
+                match routing {
+                    CompoundRoutingType::Simple(_) => {}
+                    CompoundRoutingType::Weighted(weighted) => {
+                        if weighted.is_empty() {
+                            return Err("Possibilities of a routing option is a empty list");
+                        }
+                        if weighted.iter().map(|(weight, _)| weight).sum::<f64>() == 0f64 {
+                            return Err("Total weights for a routing option adds up to zero");
+                        }
+
+                        for (weight, _) in weighted {
+                            if *weight < 0f64 {
+                                return Err(
+                                    "Probability of effect of a routing option is negative",
+                                );
+                            }
+                        }
+                    }
+                }
+                match effects {
+                    AfterEffects::Nothing => {}
+                    AfterEffects::SwitchState(new_state) => {
+                        if !self.states.contains_key(&new_state) {
+                            return Err("State after using route isn't defined in states");
+                        }
+                    }
+                    AfterEffects::Weighted(weighted) => {
+                        if weighted.is_empty() {
+                            return Err("Possibilities after using route is a empty list");
+                        }
+                        if weighted.iter().map(|(weight, _)| weight).sum::<f64>() == 0f64 {
+                            return Err("Total weights adds up to zero after using route");
+                        }
+
+                        for (weight, effect) in weighted {
+                            if *weight < 0f64 {
+                                return Err("Probability of effect after using route is negative");
+                            }
+                            if let Some(new_state) = effect {
+                                if !self.states.contains_key(new_state) {
+                                    return Err("State after using route isn't defined in states");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (_, (routing, effects)) in &state.backward_routings {
                 match routing {
                     CompoundRoutingType::Simple(_) => {}
                     CompoundRoutingType::Weighted(weighted) => {
@@ -205,7 +286,7 @@ impl RoutingInfo {
                 }
             }
         }
-        
+
         // this check is disabled since it's time consuming shouldn't be a real issue
         // possible incoming nodes == connected nodes >= outgoing nodes unless there's teleportation
         // thus every outgoing nodes should be contained in ingoing nodes
@@ -222,7 +303,6 @@ impl RoutingInfo {
         //     }
         // }
 
-
         Ok(())
     }
 
@@ -230,8 +310,12 @@ impl RoutingInfo {
         let mut incoming = BTreeSet::new();
 
         for (_, state) in &self.states {
-            for (incoming_route, _) in &state.routings {
-                incoming.insert(*incoming_route);
+            for (incoming_route, _) in &state.forward_routings {
+                incoming.insert((*incoming_route, Direction::Forward));
+            }
+
+            for (incoming_route, _) in &state.backward_routings {
+                incoming.insert((*incoming_route, Direction::Backward));
             }
         }
 
@@ -242,7 +326,20 @@ impl RoutingInfo {
         let mut outcomes = BTreeSet::new();
 
         for (_, state) in &self.states {
-            for (_, (routing, _)) in &state.routings {
+            for (_, (routing, _)) in &state.forward_routings {
+                match routing {
+                    CompoundRoutingType::Simple(routing) => {
+                        outcomes.insert(*routing);
+                    }
+                    CompoundRoutingType::Weighted(routings) => {
+                        for (_, routing) in routings {
+                            outcomes.insert(*routing);
+                        }
+                    }
+                };
+            }
+
+            for (_, (routing, _)) in &state.backward_routings {
                 match routing {
                     CompoundRoutingType::Simple(routing) => {
                         outcomes.insert(*routing);
@@ -262,6 +359,7 @@ impl RoutingInfo {
     pub fn build(self) -> BuiltRouter {
         assert!(self.states.contains_key(&self.default_state));
         BuiltRouter {
+            configured: self.configured,
             current_state: self.default_state,
             states: self
                 .states
@@ -272,7 +370,9 @@ impl RoutingInfo {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct BuiltRouter {
+    configured: bool,
     current_state: RoutingStateID,
     states: BTreeMap<RoutingStateID, BuiltRoutingState>,
 }
@@ -283,6 +383,10 @@ impl BuiltRouter {
         rng: &mut R,
         incoming: (TrackID, Direction),
     ) -> RoutingType {
+        if !self.configured {
+            return RoutingType::BounceBack;
+        }
+
         let current_state = self.states.get(&self.current_state).unwrap();
         let outgoing = current_state.routings.get(&incoming).unwrap().0.sample(rng);
         if let Some(new_state) = current_state.routings.get(&incoming).unwrap().1.sample(rng) {
@@ -293,6 +397,9 @@ impl BuiltRouter {
     }
 
     pub fn clicked<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        if !self.configured {
+            return;
+        }
         let current_state = self.states.get(&self.current_state).unwrap();
         if let Some(new_state) = current_state.after_click.sample(rng) {
             self.current_state = new_state;

@@ -28,9 +28,10 @@
 
 - `GET /nodes` return a list of nodes ids with their location
 - `GET /nodes/{id}` return a json containing connections and type of the node
+  - 404 if the node does not exist
   - and configured routing data if applicable
 - `GET /nodes/{id}/routing` sends only the routing data
-  - 404 if the node is not one of type "Configurable"
+  - 404 if the node is not one of type "Configurable" or does not exist
 - `POST /nodes/{id}/routing` overides the routing data
-  - 404 if the node is not one of type "Configurable"
+  - 404 if the node is not one of type "Configurable" or does not exist
   - 422 if the provided json doesn't make sense logically
