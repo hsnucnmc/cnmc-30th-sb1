@@ -23,11 +23,11 @@ let grid_node = new w2grid({
         { field: 'recid', text: 'NodeID', size: '150px', sortable: true, resizable: true },
         {
             field: 'PositionX', text: 'PositionX', size: '180px', sortable: true, resizable: true, render: 'int',
-            editable: { type: 'int', min: 0, max: 32756 }
+            editable: { type: 'int', min: -32756, max: 32756 }
         },
         {
             field: 'PositionY', text: 'PositionY', size: '180px', sortable: true, resizable: true, render: 'int',
-            editable: { type: 'int', min: 0, max: 32756 }
+            editable: { type: 'int', min: -32756, max: 32756 }
         },
         {
             field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
