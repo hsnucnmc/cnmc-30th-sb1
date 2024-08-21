@@ -38,11 +38,22 @@ async fn main() {
 
         // build our application with a single route
 
+        let (list_nodes_request_sender, list_nodes_request_receiver) = mpsc::channel(16);
+        let (node_type_request_sender, node_type_request_receiver) = mpsc::channel(16);
+        let (node_get_routing_request_sender, node_get_routing_request_receiver) =
+            mpsc::channel(16);
+        let (node_set_routing_request_sender, node_set_routing_request_receiver) =
+            mpsc::channel(16);
+
         let shared_state = AppState {
             view_request_tx,
             valid_id: valid_id_rx,
             ctrl_request_tx,
             derail_tx,
+            list_nodes_request: list_nodes_request_sender,
+            node_type_request: node_type_request_sender,
+            node_get_routing_request: node_get_routing_request_sender,
+            node_set_routing_request: node_set_routing_request_sender,
             next_track: next_track_arc.clone(),
         };
 
@@ -93,6 +104,13 @@ async fn main() {
                 get(|state| handler::derail_handler(state, Path("".into()))),
             )
             .route("/force-derail/:id", get(handler::derail_handler))
+            .route("/nodes", get(handler::list_nodes_handler))
+            .route("/nodes/:id", get(handler::list_nodes_handler))
+            .route("/nodes/:id", get(handler::node_type_handler))
+            .route(
+                "/nodes/:id/routing",
+                get(handler::node_get_routing_handler).post(handler::node_set_routing_handler),
+            )
             .with_state(shared_state);
 
         let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");

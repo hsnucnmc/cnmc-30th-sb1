@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
 
-use crate::AppState;
+use crate::{routing::RoutingInfo, AppState};
 use axum::{
-    extract::{ws, Path, State},
-    response::IntoResponse,
+    extract::{ws, Path, State}, http::response, response::IntoResponse, Json
 };
 use packet::*;
 use tokio::sync::oneshot;
@@ -53,7 +52,7 @@ pub async fn derail_handler(
 }
 
 pub async fn list_track_handler() -> axum::response::Response {
-    axum::Json(
+    Json(
         match serde_json::from_str::<BTreeSet<String>>(
             &std::fs::read_to_string("tracks/existing.json").unwrap_or("[]".into()),
         ) {
@@ -65,6 +64,100 @@ pub async fn list_track_handler() -> axum::response::Response {
         },
     )
     .into_response()
+}
+
+pub async fn list_nodes_handler(State(state): State<AppState>) -> axum::response::Response {
+    let (sender, receiver) = oneshot::channel();
+    match state.list_nodes_request.send(sender).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed receiving node list");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    Json(match receiver.await {
+        Ok(list) => list,
+        Err(_) => {
+            println!("Failed receiving node list");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    })
+    .into_response()
+}
+
+pub async fn node_type_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<NodeID>,
+) -> axum::response::Response {
+    let (sender, receiver) = oneshot::channel();
+    match state.node_type_request.send((node_id, sender)).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed receiving node type");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    Json(match receiver.await {
+        Ok(node_type) => node_type,
+        Err(_) => {
+            println!("Failed receiving node type");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    })
+    .into_response()
+}
+
+pub async fn node_get_routing_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<NodeID>,
+) -> axum::response::Response {
+    let (sender, receiver) = oneshot::channel();
+    match state.node_get_routing_request.send((node_id, sender)).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed receiving node routing info");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    Json(match receiver.await {
+        Ok(Some(list)) => list,
+        Ok(None) => {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+        Err(_) => {
+            println!("Failed receiving node routing info");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    })
+    .into_response()
+}
+
+pub async fn node_set_routing_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<NodeID>,
+    Json(routing): Json<RoutingInfo>,
+) -> axum::response::Response {
+    if let Err(err) = routing.check() {
+        let mut response = axum::response::Response::default();
+        *response.body_mut() = err.to_string().into_bytes().into();
+        *response.status_mut() = axum::http::StatusCode::UNPROCESSABLE_ENTITY;
+        return response;
+    }
+
+    match state
+        .node_set_routing_request
+        .send((node_id, routing))
+        .await
+    {
+        Ok(_) => axum::http::StatusCode::OK.into_response(),
+        Err(_) => {
+            println!("Failed requesting node routing change");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
