@@ -276,9 +276,10 @@ window.requestAnimationFrame(redraw);
 let url = new URL(window.location.href);
 console.log((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
 let socket = null;
+let ctrl_socket = null;
 function startSocket() {
     socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws");
-
+    ctrl_socket = new WebSocket((url.protocol == "http:" ? "ws:" : "wss:") + "//" + url.host + "/ws-ctrl");
 
     socket.onerror = _ => {
         main_canvas.hidden = true;
@@ -372,6 +373,9 @@ function startSocket() {
                             });
                         }
                     });
+
+                    if (selected_node)
+                        updateSelectedAsNode();
                     break;
                 case "nuke":
                     nodelist.delete(Number(msg_split[1]));
@@ -416,35 +420,85 @@ function startSocket() {
 
 startSocket();
 
+let selected_node = null;
+let selected_train = null;
+
+function updateSelectedAsNode() {
+    let selected_display = document.getElementById("selected-display");
+    selected_display.innerHTML = "Selected: Node#" + selected_node.id + "<br/>"
+        + "Node Type: ??????<br/>";
+    fetch("/nodes/" + selected_node.id).then(response => {
+        return response.json();
+    }).then(type => {
+        selected_display.innerHTML = "Selected: Node#" + selected_node.id + "<br/>"
+            + "Node Type: " + type + "<br/>";
+    });
+    let delete_button = document.createElement("button");
+    delete_button.innerText = "Delete Node";
+    delete_button.onclick = _ => {
+        ctrl_socket.send("node_delete\n" + selected_node.id);
+    }
+    selected_display.append(delete_button);
+}
+
 // update click on demand
 window.addEventListener("click", function (event) {
     let x = event.offsetX / 0.7 + relative_x;
     let y = event.offsetY / 0.7 + relative_y;
     let mousePos = { x: x, y: y };
 
-    let node_r = 40;
+    let node_r = 40 / 0.7;
     let node_clicked = false;
     nodelist.forEach(node => {
         clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
         if (clickr <= node_r) {
-            socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
+            // socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
+            selected_node = node;
             node_clicked = true;
         }
     });
 
-    if (node_clicked)
+    if (node_clicked) {
+        selected_train = null;
+        updateSelectedAsNode();
         return;
+    }
 
-    r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2));
+    let train_clicked = false;
+    let train_r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2)) / 0.7;
     // time complexity (o(n))
     trainposition.forEach(pos => {
         clickr = Math.sqrt(Math.pow(mousePos.x - pos.x, 2) + Math.pow(mousePos.y - pos.y, 2));
-        if (clickr <= r) {
+        if (clickr <= train_r) {
             socket.send("click\n" + pos.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
+            train_clicked = true;
+            selected_train = pos.id;
         }
     });
 
+    if (train_clicked) {
+        selected_node = null;
+        let selected_display = document.getElementById("selected-display");
+        selected_display.innerHTML = "Selected: Train#" + selected_train + "<br/>";
+
+        // let delete_button = document.createElement("button");
+        // delete_button.innerText = "Delete Train";
+        // delete_button.onclick = _ => {
+        //     ctrl_socket.send("node_delete\n"+selected_node.id);
+        // }
+        // selected_display.append(delete_button);
+        return;
+    }
+
+    event.preventDefault();
+    return false;
 });
+
+window.addEventListener("contextmenu",
+    event => {
+        event.preventDefault();
+        return false;
+    });
 
 // make window draggable
 window.addEventListener("mousemove", event => {
