@@ -157,22 +157,42 @@ impl Node {
                 let nth = thread_rng().gen_range(0..self.connections.len());
                 let next_track = self.connections.iter().nth(nth).unwrap();
                 if self.connections.len() == 1 {
-                    break RoutingType::BounceBack;
+                    match self.connections.get(&current_track).unwrap() {
+                        MultiDirection::Both => break RoutingType::Track((current_track, current_direction)),
+                        MultiDirection::Forward => break RoutingType::BounceBack,
+                        MultiDirection::Backward => break RoutingType::BounceBack,
+                    }
                 }
                 if next_track.0 != &current_track {
                     break RoutingType::Track((
                         *next_track.0,
                         !next_track.1.sample(&mut thread_rng()),
                     ));
+                } else {
+                    match self.connections.get(&current_track).unwrap() {
+                        MultiDirection::Both => break RoutingType::Track((current_track, current_direction)),
+                        MultiDirection::Forward => {},
+                        MultiDirection::Backward => {},
+                    }
                 }
             },
             NodeType::RoundRobin => match self.connections.get(&current_track).unwrap() {
                 MultiDirection::Both => {
-                    if current_direction == Direction::Forward {}
+                    // if current_direction == Direction::Forward {
+                    //     RoutingType::Track((
+                    //         *next_track.0,
+                    //         !next_track.1.sample(&mut thread_rng()),
+                    //     ))
+                    // }
                     todo!()
                 }
-                MultiDirection::Forward => todo!(),
-                MultiDirection::Backward => todo!(),
+                MultiDirection::Forward | MultiDirection::Backward => {
+                    todo!();
+                    self.connections
+                        .range(current_track + 1..=TrackID::MAX)
+                        .next()
+                        .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap());
+                }
             },
             NodeType::Reverse => RoutingType::BounceBack,
             // TODO: implement the new node types
