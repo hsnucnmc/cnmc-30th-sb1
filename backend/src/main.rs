@@ -97,6 +97,12 @@ async fn main() {
                     "frontend/control.html",
                 )),
             )
+            .route(
+                "/routing",
+                axum::routing::get_service(tower_http::services::ServeFile::new(
+                    "frontend/routing.html",
+                )),
+            )
             .route("/ws", get(handler::ws_get_handler))
             .route("/ws-ctrl", get(handler::ctrl_get_handler))
             .route("/available-tracks", get(handler::list_track_handler))
