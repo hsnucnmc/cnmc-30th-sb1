@@ -27,10 +27,11 @@
 ## `/nodes/` HTTP Endpoint
 
 - `GET /nodes` return a list of nodes ids with their location
-- `GET /nodes/{id}` return a json containing connections and type of the node
+- `GET /nodes/{id}` return a string containing the node type of the node
   - 404 if the node does not exist
-  - and configured routing data if applicable
-- `GET /nodes/{id}/routing` sends only the routing data
+- `GET /nodes/{id}/state` sends the current routing state of the node
+  - 404 if the node is not one of type "Configurable" or does not exist
+- `GET /nodes/{id}/routing` sends the routing data of the node
   - 404 if the node is not one of type "Configurable" or does not exist
 - `POST /nodes/{id}/routing` overides the routing data
   - 404 if the node is not one of type "Configurable" or does not exist

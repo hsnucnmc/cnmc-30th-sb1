@@ -381,6 +381,10 @@ pub struct BuiltRouter {
 }
 
 impl BuiltRouter {
+    pub fn state(&self) -> RoutingStateID {
+        self.current_state
+    }
+
     pub fn route<R: Rng + ?Sized>(
         &mut self,
         rng: &mut R,

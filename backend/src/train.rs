@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use packet::*;
 
-use crate::routing::{AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingType};
+use crate::routing::{AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingStateID, RoutingType};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum MultiDirection {
@@ -936,6 +936,18 @@ fn node_set_routing_request_handler(
     }
 }
 
+fn node_get_routing_state_handler(
+    response_tx: oneshot::Sender<Option<RoutingStateID>>,
+    node_id: NodeID,
+    nodes: &BTreeMap<NodeID, Node>,
+) {
+    let _ = response_tx.send(if let Some(node) = nodes.get(&node_id) {
+        node.router.as_ref().and_then(|router| Some(router.state()))
+    } else {
+        None
+    });
+}
+
 async fn move_single_train_and_notify(
     duration: Duration,
     nodes: &mut BTreeMap<NodeID, Node>,
@@ -1144,6 +1156,7 @@ pub async fn train_master(
     mut node_type_request_rx: mpsc::Receiver<(NodeID, oneshot::Sender<Option<NodeType>>)>,
     mut node_get_routing_request_rx: mpsc::Receiver<(NodeID, oneshot::Sender<Option<RoutingInfo>>)>,
     mut node_set_routing_request_rx: mpsc::Receiver<(NodeID, RoutingInfo)>,
+    mut node_state_request_rx: mpsc::Receiver<(NodeID, oneshot::Sender<Option<RoutingStateID>>)>,
     using_track: String,
 ) {
     if using_track != "" {
@@ -1463,6 +1476,11 @@ pub async fn train_master(
             request = node_set_routing_request_rx.recv() => {
                 let request = request.unwrap();
                 node_set_routing_request_handler(request.0, request.1, &mut nodes, &tracks);
+            }
+
+            request = node_state_request_rx.recv() => {
+                let (node_id, response_tx) = request.unwrap();
+                node_get_routing_state_handler(response_tx, node_id, &mut nodes);
             }
 
             _ = derail_rx.recv() => {

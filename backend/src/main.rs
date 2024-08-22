@@ -24,6 +24,8 @@ async fn main() {
         let (node_type_request_tx, node_type_request_rx) = mpsc::channel(16);
         let (node_get_routing_request_tx, node_get_routing_request_rx) = mpsc::channel(16);
         let (node_set_routing_request_tx, node_set_routing_request_rx) = mpsc::channel(16);
+        let (node_state_request_tx, node_state_request_rx) = mpsc::channel(16);
+        
 
         let next_track_mutex = tokio::sync::Mutex::new(Some(String::new()));
         let next_track_arc = std::sync::Arc::new(next_track_mutex);
@@ -39,6 +41,7 @@ async fn main() {
                 node_type_request_rx,
                 node_get_routing_request_rx,
                 node_set_routing_request_rx,
+                node_state_request_rx,
                 using_track,
             )
             .await
@@ -55,6 +58,7 @@ async fn main() {
             node_type_request: node_type_request_tx,
             node_get_routing_request: node_get_routing_request_tx,
             node_set_routing_request: node_set_routing_request_tx,
+            node_state_request: node_state_request_tx,
             next_track: next_track_arc.clone(),
         };
 
@@ -111,6 +115,11 @@ async fn main() {
                 "/nodes/:id/routing",
                 get(handler::node_get_routing_handler).post(handler::node_set_routing_handler),
             )
+            .route(
+                "/nodes/:id/state",
+                get(handler::node_state_handler),
+            )
+
             .with_state(shared_state);
 
         let location = option_env!("TRAIN_SITE_LOCATION").unwrap_or("0.0.0.0:8080");

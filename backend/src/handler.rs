@@ -112,6 +112,32 @@ pub async fn node_type_handler(
     .into_response()
 }
 
+pub async fn node_state_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<NodeID>,
+) -> axum::response::Response {
+    let (sender, receiver) = oneshot::channel();
+    match state.node_state_request.send((node_id, sender)).await {
+        Ok(_) => {}
+        Err(_) => {
+            println!("Failed receiving node state");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    Json(match receiver.await {
+        Ok(Some(node_state)) => node_state,
+        Ok(None) => {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+        Err(_) => {
+            println!("Failed receiving node state");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    })
+    .into_response()
+}
+
 pub async fn node_get_routing_handler(
     State(state): State<AppState>,
     Path(node_id): Path<NodeID>,
