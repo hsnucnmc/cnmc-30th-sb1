@@ -41,7 +41,10 @@ let grid_node = new w2grid({
             field: 'nodetype', text: 'Type', size: '100px', sortable: true, resizable: true,
             editable: { type: 'list', items: NODE_TYPE_OPTIONS, showAll: true, openOnFocus: true, align: 'left' },
             render(record, extra) {
-                return extra.value?.text || record.nodetype;
+                if (record.nodetype.id == "configurable" && extra.value?.id == "configurable") {
+                    return '<a class="text-blue-700 dark:text-blue-600 underline" target="_blank" title="Click Me!" href="/nodes/' + record.recid + '/routing">' + extra.value.text + '</a>';
+                }
+                return extra.value?.text || record.nodetype.text;
             }
         },
     ],
@@ -509,11 +512,7 @@ function startSocket() {
                             return response.json();
                         }).then(type => {
                             grid_node.records[grid_node.get(new_node.id, true)].nodetype = { id: type, text: NODE_TYPE_TO_TEXT[type] };
-                            // grid_node.records[grid_node.get(new_node.id, true)].nodetype.text = type;
                             grid_node.update();
-                            // if(type == "Configurable") {
-                            //     grid_node.records[recordindex].nodetype = '<a href="/nodes/'+  new_node.id +'/routing">Configurable</a>';
-                            // }
                         });
 
                         nodelist.set(new_node.id, new_node);
