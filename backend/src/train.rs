@@ -1320,6 +1320,10 @@ pub async fn train_master(
         }
     }
 
+    if nodes.is_empty() {
+        return;
+    }
+
     let timestamp = format!(
         "{:011}",
         std::time::SystemTime::now()
