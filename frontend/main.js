@@ -122,32 +122,34 @@ function redraw(time) {
                         }
                     }
 
-                    let cordlist = tracklist.get(train.track_id).cordlist;
-                    let current_t = (time - train.movement_start) / train.duration;
-                    if (train.direction == -1) {
-                        current_t = 1 - current_t;
-                    }
-                    train.current_t = current_t;
-                    if (current_t > 1.5 || current_t < -0.5) {
-                        explosionList.delete(explosion_id);
-                        return;
-                    }
-                    if (current_t > 1) {
-                        current_t = (Math.log(5 * current_t - 4)) / 5 + 1;
-                    }
+                    if (tracklist.has(train.track_id)) {
+                        let cordlist = tracklist.get(train.track_id).cordlist;
+                        let current_t = (time - train.movement_start) / train.duration;
+                        if (train.direction == -1) {
+                            current_t = 1 - current_t;
+                        }
+                        train.current_t = current_t;
+                        if (current_t > 1.5 || current_t < -0.5) {
+                            explosionList.delete(explosion_id);
+                            return;
+                        }
+                        if (current_t > 1) {
+                            current_t = (Math.log(5 * current_t - 4)) / 5 + 1;
+                        }
 
-                    if (current_t < 0) {
-                        current_t = -(Math.log(1 - 5 * current_t)) / 5;
-                    }
+                        if (current_t < 0) {
+                            current_t = -(Math.log(1 - 5 * current_t)) / 5;
+                        }
 
-                    let point = bezierPoint(cordlist, current_t);
-                    let x_pos = point.x;
-                    let y_pos = point.y;
-                    train.x = x_pos;
-                    train.y = y_pos;
-                    let dresult = bezierDerivative(cordlist, current_t);
-                    let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI + current_t * (-22.5) * (train.direction + 1) + (1 - current_t) * (-22.5) * (train.direction - 1);
-                    drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
+                        let point = bezierPoint(cordlist, current_t);
+                        let x_pos = point.x;
+                        let y_pos = point.y;
+                        train.x = x_pos;
+                        train.y = y_pos;
+                        let dresult = bezierDerivative(cordlist, current_t);
+                        let deg = Math.atan2(dresult.dy, dresult.dx) * 180 / Math.PI + current_t * (-22.5) * (train.direction + 1) + (1 - current_t) * (-22.5) * (train.direction - 1);
+                        drawRotatedImg(main_context, x_pos, y_pos, deg, x_pos - train_width / 2, y_pos - train_height, train.img);
+                    }
                 }
                 break;
             case "v": // vibration

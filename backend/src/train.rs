@@ -1031,7 +1031,7 @@ async fn delete_node(
             }
 
             for (train_id, train) in trains.iter() {
-                if train.current_track == deleting {
+                if train.current_track == affecting {
                     for channel in viewer_channels.values() {
                         channel
                             .send(ServerPacket::PacketREMOVE(*train_id, RemovalType::Derail))
