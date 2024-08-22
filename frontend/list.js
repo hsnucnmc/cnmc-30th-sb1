@@ -1,12 +1,20 @@
 import { w2grid, w2popup } from 'https://rawgit.com/vitmalina/w2ui/master/dist/w2ui.es6.min.js';
 
 const NODE_TYPE_OPTIONS = [
-    { id: 1, text: 'Random' },
-    { id: 2, text: 'RoundRobin' },
-    { id: 3, text: 'Reverse' },
-    { id: 4, text: 'Derailing' },
-    { id: 5, text: 'Configurable' }
+    { id: "random", text: 'Random' },
+    { id: "roundrobin", text: 'RoundRobin' },
+    { id: "reverse", text: 'Reverse' },
+    { id: "derail", text: 'Derailing' },
+    { id: "configurable", text: 'Configurable' }
 ];
+
+const NODE_TYPE_TO_TEXT = {
+    "random": 'Random',
+    "roundrobin": 'RoundRobin',
+    "reverse": 'Reverse',
+    "derail": 'Derailing',
+    "configurable": 'Configurable'
+};
 
 let grid_node = new w2grid({
     name: 'nodelist',
@@ -65,6 +73,9 @@ let grid_node = new w2grid({
                     let record = grid_node.get(e.recid);
                     //you can access node type  by record.nodetype
                     ctrl_socket.send("node_move\n" + e.recid + " " + record.PositionX + ";" + record.PositionY);
+                    if (e.nodetype != undefined) {
+                        ctrl_socket.send("node_edit\n" + e.recid + " " + e.nodetype.id);
+                    }
                 });
 
             }
@@ -392,7 +403,7 @@ function startSocket() {
         grid_node.clear();
         grid_train.clear();
         grid_track.clear();
-        
+
         derail_img.remove();
         document.getElementById("status-container").innerText = "Connected! " + new Date();;
 
@@ -484,22 +495,26 @@ function startSocket() {
                         new_node.x = Number(args[1].split(";")[0]);
                         new_node.y = Number(args[1].split(";")[1]);
 
-                        let new_row = nodelist.get(new_node.id)?.html_row;
-                        if (!new_row) {
-                            //! Do not support multi control
-                            //if not exist
-                            if (grid_node.get(new_node.id) == null) {
-                                grid_node.add({ recid: new_node.id, PositionX: new_node.x, PositionY: new_node.y, nodetype: "Random" });
-                            } else {
-                                let recordindex = grid_node.get(new_node.id, true);
-                                grid_node.records[recordindex].PositionX = new_node.x;
-                                grid_node.records[recordindex].PositionY = new_node.y;
-                                grid_node.records[recordindex].nodetype = "Random";
-                                grid_node.update();
-                            }
-
+                        if (grid_node.get(new_node.id) == null) {
+                            grid_node.add({ recid: new_node.id, PositionX: new_node.x, PositionY: new_node.y, nodetype: { id: "random", text: "Random" } });
+                        } else {
+                            let recordindex = grid_node.get(new_node.id, true);
+                            grid_node.records[recordindex].PositionX = new_node.x;
+                            grid_node.records[recordindex].PositionY = new_node.y;
+                            grid_node.records[recordindex].nodetype = { id: "random", text: "Random" };
+                            grid_node.update();
                         }
 
+                        fetch("/nodes/" + new_node.id).then(response => {
+                            return response.json();
+                        }).then(type => {
+                            grid_node.records[grid_node.get(new_node.id, true)].nodetype = { id: type, text: NODE_TYPE_TO_TEXT[type] };
+                            // grid_node.records[grid_node.get(new_node.id, true)].nodetype.text = type;
+                            grid_node.update();
+                            // if(type == "Configurable") {
+                            //     grid_node.records[recordindex].nodetype = '<a href="/nodes/'+  new_node.id +'/routing">Configurable</a>';
+                            // }
+                        });
 
                         nodelist.set(new_node.id, new_node);
                     }

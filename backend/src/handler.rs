@@ -100,7 +100,7 @@ pub async fn node_type_handler(
     };
 
     Json(match receiver.await {
-        Ok(Some(node_type)) => node_type,
+        Ok(Some(node_type)) => node_type.to_string(),
         Ok(None) => {
             return axum::http::StatusCode::NOT_FOUND.into_response();
         }
