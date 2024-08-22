@@ -33,7 +33,8 @@
 <node_update>	::= "node\n" <node_id> " " <coord>
 <removal_type>	::= "explosion" | "silent" | "derail" | "vibrate" | "take_off"
 <train_remove>	::= "remove\n" <train_id> " " <removal_type>
-<server_packet>	::= <track_update> | <train_update> | <node_update> | <train_remove>
+<node_nuke>		::= "nuke\n" <node_id>
+<server_packet>	::= <track_update> | <train_update> | <node_update> | <train_remove> | <node_nuke>
 
 # <ctrl_click>	::= "ctrl_click\n" (("train " <train_id>) | ("track " <track_id>) | ("node" <node_id>))
 <node_new>		::= "node_new\n" <coord> " " <node_type>

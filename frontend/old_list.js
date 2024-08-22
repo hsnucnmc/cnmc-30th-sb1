@@ -188,7 +188,7 @@ function startSocket() {
                     while (trackHTMLTable.rows.length > 1) {
                         trackHTMLTable.deleteRow(-1);
                     }
-                    
+
                     for (i = 2; i < msg_split.length; i++) {
                         args = msg_split[i].split(" ");
                         let new_track = {};
@@ -283,6 +283,10 @@ function startSocket() {
 
                         nodelist.set(new_node.id, new_node);
                     }
+                    break;
+                case "nuke":
+                    nodelist.get(Number(msg_split[1])).html_row.remove();
+                    nodelist.delete(Number(msg_split[1]));
                     break;
                 case "remove":
                     args = msg_split[1].split(" ");

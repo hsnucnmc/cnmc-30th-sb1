@@ -581,6 +581,11 @@ function startSocket() {
                         nodelist.set(new_node.id, new_node);
                     }
                     break;
+                case "nuke":
+                    nodelist.delete(Number(msg_split[1]));
+                    grid_node.remove(Number(msg_split[1]));
+                    grid_node.update();
+                    break;
                 case "remove":
                     let args = msg_split[1].split(" ");
                     // let new_explosion = {};

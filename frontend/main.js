@@ -317,6 +317,9 @@ function startSocket() {
                     new_node.y = Number(args[1].split(";")[1]);
                     nodelist.set(new_node.id, new_node);
                     break;
+                case "nuke":
+                    nodelist.delete(Number(msg_split[1]));
+                    break;
                 case "remove":
                     args = msg_split[1].split(" ");
                     let new_explosion = {};

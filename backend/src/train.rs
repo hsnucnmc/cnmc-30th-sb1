@@ -993,6 +993,11 @@ async fn delete_node(
         return;
     }
 
+    let packet = ServerPacket::PacketNUKE(deleting);
+    for channel in viewer_channels.values() {
+        channel.send(packet.clone()).await;
+    }
+
     // remove tracks with it as endpoint
     // fix any affected nodes
     // delete the node itself

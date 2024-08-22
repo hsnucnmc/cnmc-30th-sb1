@@ -209,6 +209,7 @@ pub enum ServerPacket {
     PacketTRACK(Vec<(TrackID, Bezier, Color, Thickness)>),
     PacketNODE(NodeID, Coord),
     PacketREMOVE(TrainID, RemovalType),
+    PacketNUKE(NodeID),
 }
 
 impl std::fmt::Display for ServerPacket {
@@ -241,6 +242,10 @@ impl std::fmt::Display for ServerPacket {
 
             Self::PacketREMOVE(train_id, removal_type) => {
                 write!(f, "remove\n{} {}", train_id, removal_type)
+            }
+
+            Self::PacketNUKE(node_id) => {
+                write!(f, "nuke\n{}", node_id)
             }
         }
     }
