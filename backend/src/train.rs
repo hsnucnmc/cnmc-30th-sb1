@@ -1,3 +1,4 @@
+use rand::prelude::Distribution;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -9,11 +10,75 @@ use packet::*;
 
 use crate::routing::{AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingType};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum MultiDirection {
+    Both,
+    Forward,
+    Backward,
+}
+
+impl MultiDirection {
+    fn has_direction(&self, direction: Direction) -> bool {
+        match self {
+            MultiDirection::Both => true,
+            MultiDirection::Forward => direction == Direction::Forward,
+            MultiDirection::Backward => direction == Direction::Backward,
+        }
+    }
+
+    fn add_direction(&mut self, direction: Direction) {
+        *self = match self {
+            MultiDirection::Both => MultiDirection::Both,
+            MultiDirection::Forward => {
+                if direction == Direction::Backward {
+                    MultiDirection::Both
+                } else {
+                    MultiDirection::Forward
+                }
+            }
+            MultiDirection::Backward => {
+                if direction == Direction::Forward {
+                    MultiDirection::Both
+                } else {
+                    MultiDirection::Backward
+                }
+            }
+        }
+    }
+}
+
+impl Distribution<Direction> for MultiDirection {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Direction {
+        if rng.gen_bool(0.5f64) {
+            if self.has_direction(Direction::Forward) {
+                Direction::Forward
+            } else {
+                Direction::Backward
+            }
+        } else {
+            if self.has_direction(Direction::Backward) {
+                Direction::Backward
+            } else {
+                Direction::Forward
+            }
+        }
+    }
+}
+
+impl From<Direction> for MultiDirection {
+    fn from(value: Direction) -> Self {
+        match value {
+            Direction::Forward => MultiDirection::Forward,
+            Direction::Backward => MultiDirection::Backward,
+        }
+    }
+}
+
 #[derive(PartialEq, Clone, Serialize)]
 struct Node {
     id: NodeID,
     coord: Coord,
-    connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+    connections: BTreeMap<TrackID, MultiDirection>, // 順向還是反向進入接點；
     conn_type: NodeType,
     routing_info: Option<RoutingInfo>,
     #[serde(skip)]
@@ -36,7 +101,7 @@ impl Node {
 struct StrippedNode {
     id: NodeID,
     coord: Coord,
-    connections: BTreeMap<TrackID, Direction>, // 順向還是反向進入接點；
+    connections: BTreeMap<TrackID, MultiDirection>, // 順向還是反向進入接點；
     conn_type: NodeType,
     routing_info: Option<RoutingInfo>,
 }
@@ -73,41 +138,51 @@ impl StrippedNode {
 }
 
 impl Node {
+    fn connect(&mut self, track_id: TrackID, direction: Direction) {
+        match self.connections.get_mut(&track_id) {
+            None => {
+                self.connections.insert(track_id, direction.into());
+            }
+            Some(multi_direction) => multi_direction.add_direction(direction),
+        }
+    }
+
     fn to_packet(&self) -> ServerPacket {
         ServerPacket::PacketNODE(self.id, self.coord)
     }
 
-    fn next_track(&self, current_track: TrackID) -> (TrackID, Direction) {
-        (|a: (&u32, &Direction)| (*a.0, !*a.1))(match self.conn_type {
+    fn next_track(&mut self, current_track: TrackID, current_direction: Direction) -> RoutingType {
+        match self.conn_type {
             NodeType::Random => loop {
                 let nth = thread_rng().gen_range(0..self.connections.len());
                 let next_track = self.connections.iter().nth(nth).unwrap();
                 if self.connections.len() == 1 {
-                    break next_track;
+                    break RoutingType::BounceBack;
                 }
                 if next_track.0 != &current_track {
-                    break next_track;
+                    break RoutingType::Track((
+                        *next_track.0,
+                        !next_track.1.sample(&mut thread_rng()),
+                    ));
                 }
             },
-            NodeType::RoundRobin => self
-                .connections
-                .range(current_track + 1..=TrackID::MAX)
-                .next()
-                .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap()),
-            NodeType::Reverse => (
-                &current_track,
-                self.connections.get(&current_track).unwrap(),
-            ),
+            NodeType::RoundRobin => match self.connections.get(&current_track).unwrap() {
+                MultiDirection::Both => {
+                    if current_direction == Direction::Forward {}
+                    todo!()
+                }
+                MultiDirection::Forward => todo!(),
+                MultiDirection::Backward => todo!(),
+            },
+            NodeType::Reverse => RoutingType::BounceBack,
             // TODO: implement the new node types
-            NodeType::Derail => (
-                &current_track,
-                self.connections.get(&current_track).unwrap(),
-            ),
-            NodeType::Configurable => (
-                &current_track,
-                self.connections.get(&current_track).unwrap(),
-            ),
-        })
+            NodeType::Derail => RoutingType::Derail,
+            NodeType::Configurable => self
+                .router
+                .as_mut()
+                .unwrap()
+                .route(&mut thread_rng(), (current_track, current_direction)),
+        }
     }
 }
 
@@ -135,13 +210,11 @@ impl TrackPiece {
         nodes
             .get_mut(&start_id)
             .unwrap()
-            .connections
-            .insert(id, Direction::Backward);
+            .connect(id, Direction::Backward);
         nodes
             .get_mut(&end_id)
             .unwrap()
-            .connections
-            .insert(id, Direction::Forward);
+            .connect(id, Direction::Forward);
 
         let path = Bezier::new(
             nodes.get(&start_id).unwrap().coord,
@@ -161,19 +234,39 @@ impl TrackPiece {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct TrainProperties {
     speed: f64, // px/s
     image_forward: String,
     image_backward: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct TrainInstance {
     properties: TrainProperties,
     current_track: u32,
     progress: f64,        // 0 ~ 1
     direction: Direction, // backward direction: progress goes from 1 to 0
+}
+
+enum MoveResult {
+    Nothing(TrainInstance),
+    PassesNode(TrainInstance),
+    Derailed,
+}
+
+impl MoveResult {
+    fn make_packet(
+        &self,
+        id: TrainID,
+        tracks: &BTreeMap<TrackID, TrackPiece>,
+    ) -> Option<ServerPacket> {
+        match self {
+            MoveResult::Nothing(_) => None,
+            MoveResult::PassesNode(train) => Some(train.to_packet(id, tracks)),
+            MoveResult::Derailed => Some(ServerPacket::PacketREMOVE(id, RemovalType::Derail)),
+        }
+    }
 }
 
 impl TrainInstance {
@@ -191,9 +284,9 @@ impl TrainInstance {
     fn move_with_time(
         &mut self,
         duration: Duration,
-        nodes: &BTreeMap<NodeID, Node>,
+        nodes: &mut BTreeMap<NodeID, Node>,
         tracks: &BTreeMap<TrackID, TrackPiece>,
-    ) -> bool {
+    ) -> MoveResult {
         let train = self;
         let mut flag = false;
         let mut move_distance = duration.as_secs_f64() * train.properties.speed;
@@ -209,34 +302,44 @@ impl TrainInstance {
                 let end_node = match train.direction {
                     Direction::Forward => {
                         let end_node = nodes
-                            .get(&tracks.get(&train.current_track).unwrap().end)
+                            .get_mut(&tracks.get(&train.current_track).unwrap().end)
                             .unwrap();
-                        assert!(
-                            end_node.connections.get(&train.current_track).unwrap()
-                                == &Direction::Forward
-                        );
+                        assert!(end_node
+                            .connections
+                            .get(&train.current_track)
+                            .unwrap()
+                            .has_direction(Direction::Forward));
                         end_node
                     }
                     Direction::Backward => {
                         let end_node = nodes
-                            .get(&tracks.get(&train.current_track).unwrap().start)
+                            .get_mut(&tracks.get(&train.current_track).unwrap().start)
                             .unwrap();
-                        assert!(
-                            end_node.connections.get(&train.current_track).unwrap()
-                                == &Direction::Backward
-                        );
+                        assert!(end_node
+                            .connections
+                            .get(&train.current_track)
+                            .unwrap()
+                            .has_direction(Direction::Backward));
                         end_node
                     }
                 };
-                let next_track = end_node.next_track(train.current_track);
 
-                train.current_track = next_track.0;
-                train.direction = next_track.1;
+                match end_node.next_track(train.current_track, train.direction) {
+                    RoutingType::Derail => return MoveResult::Derailed,
+                    RoutingType::BounceBack => {
+                        train.direction = !train.direction;
+                    }
+                    RoutingType::Track((track, direction)) => {
+                        train.current_track = track;
+                        train.direction = direction;
+                    }
+                }
 
                 train.progress = match train.direction {
                     Direction::Forward => 0f64,
                     Direction::Backward => 1f64,
                 };
+
                 flag = true;
             } else {
                 train.progress += move_distance / tracks.get(&train.current_track).unwrap().length
@@ -247,7 +350,12 @@ impl TrainInstance {
                 break;
             }
         }
-        return flag;
+
+        if flag {
+            MoveResult::PassesNode(train.clone())
+        } else {
+            MoveResult::Nothing(train.clone())
+        }
     }
 
     fn to_packet(&self, id: u32, tracks: &BTreeMap<u32, TrackPiece>) -> ServerPacket {
@@ -807,6 +915,51 @@ fn node_set_routing_request_handler(
     }
 }
 
+async fn move_single_train_and_notify(
+    duration: Duration,
+    nodes: &mut BTreeMap<NodeID, Node>,
+    tracks: &BTreeMap<TrackID, TrackPiece>,
+    id: TrainID,
+    train: &mut TrainInstance,
+    viewer_channels: &BTreeMap<u32, mpsc::Sender<ServerPacket>>,
+) -> bool {
+    let result = train.move_with_time(duration, nodes, tracks);
+    let packet = result.make_packet(id, &tracks);
+    if let Some(packet) = packet {
+        for (_, channel) in viewer_channels.iter() {
+            channel.send(packet.clone()).await;
+        }
+    }
+
+    match result {
+        MoveResult::Nothing(finished_train) => *train = finished_train,
+        MoveResult::PassesNode(finished_train) => *train = finished_train,
+        MoveResult::Derailed => {
+            return true;
+        }
+    }
+
+    false
+}
+
+async fn move_trains_and_notify(
+    duration: Duration,
+    nodes: &mut BTreeMap<NodeID, Node>,
+    tracks: &BTreeMap<TrackID, TrackPiece>,
+    trains: &mut BTreeMap<TrainID, TrainInstance>,
+    viewer_channels: &BTreeMap<u32, mpsc::Sender<ServerPacket>>,
+) {
+    let mut removed = Vec::new();
+    for (i, train) in trains.iter_mut() {
+        if move_single_train_and_notify(duration, nodes, tracks, *i, train, viewer_channels).await {
+            removed.push(*i);
+        }
+    }
+
+    for i in removed {
+        let _ = trains.remove(&i).unwrap();
+    }
+}
 pub async fn train_master(
     mut view_request_rx: mpsc::Receiver<
         oneshot::Sender<(
@@ -869,14 +1022,8 @@ pub async fn train_master(
             biased;
 
             _ = wait => {
-                let wait_end = tokio::time::Instant::now();
-                for (i, train) in trains.iter_mut() {
-                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(*i, &tracks)).await;
-                        }
-                    }
-                }
+                let duration = tokio::time::Instant::now() - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             clicked = click_rx.recv() => {
@@ -896,18 +1043,23 @@ pub async fn train_master(
                     }
                 }
 
-                for (&i, train) in trains.iter_mut() {
-                    if i == clicked_id && !modifier.ctrl && !modifier.shift{
-                        if train.move_with_time(wait_end - wait_start + Duration::from_secs(3), &nodes, &tracks) {
-                            for (_, channel) in viewer_channels.iter() {
-                                channel.send(train.to_packet(i, &tracks)).await;
+                let duration = wait_end - wait_start;
+                {
+                    let mut removed = Vec::new();
+                    for (i, train) in trains.iter_mut() {
+                        if *i == clicked_id && !modifier.ctrl && !modifier.shift{
+                            if move_single_train_and_notify(duration + Duration::from_secs(5), &mut nodes, &tracks, *i, train, &viewer_channels).await {
+                                removed.push(*i);
+                            }
+                        } else {
+                            if move_single_train_and_notify(duration, &mut nodes, &tracks, *i, train, &viewer_channels).await {
+                                removed.push(*i);
                             }
                         }
-                    } else
-                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for channel in viewer_channels.values() {
-                            channel.send(train.to_packet(i as u32, &tracks)).await;
-                        }
+                    }
+
+                    for i in removed {
+                        let _ = trains.remove(&i).unwrap();
                     }
                 }
 
@@ -1001,11 +1153,15 @@ pub async fn train_master(
                             for (id, &direction) in &node.connections {
                                 let track = tracks.get_mut(id).unwrap();
                                 match direction {
-                                    Direction::Forward => {
+                                    MultiDirection::Forward => {
                                         *track.path.end_mut() = coord;
                                     }
-                                    Direction::Backward => {
+                                    MultiDirection::Backward => {
                                         *track.path.start_mut() = coord;
+                                    }
+                                    MultiDirection::Both => {
+                                        *track.path.start_mut() = coord;
+                                        *track.path.end_mut() = coord;
                                     }
                                 }
                                 track.length = track.path.fast_length();
@@ -1046,14 +1202,8 @@ pub async fn train_master(
                     _ => {},
                 }
 
-                let wait_end = tokio::time::Instant::now();
-                for (&i, train) in trains.iter_mut() {
-                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(i, &tracks)).await;
-                        }
-                    }
-                }
+                let duration = tokio::time::Instant::now() - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             request_result = view_request_rx.recv() => {
@@ -1069,15 +1219,9 @@ pub async fn train_master(
                     |a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness)
                 ).collect())).await.unwrap();
 
-                let wait_end = tokio::time::Instant::now();
-                for (&i, train) in trains.iter_mut() {
-                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(i, &tracks)).await;
-                        }
-                    }
-                    notify_tx.send(train.to_packet(i as u32, &tracks)).await;
-                }
+                let duration = tokio::time::Instant::now() - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
+
                 viewer_channels.insert(next_viewer_serial, notify_tx);
                 next_viewer_serial += 1;
             }
@@ -1087,14 +1231,8 @@ pub async fn train_master(
                 let response_tx = request_result.unwrap();
                 response_tx.send(ctrl_tx.clone()).unwrap();
 
-                let wait_end = tokio::time::Instant::now();
-                for (&i, train) in trains.iter_mut() {
-                    if train.move_with_time(wait_end - wait_start, &nodes, &tracks) {
-                        for (_, channel) in viewer_channels.iter() {
-                            channel.send(train.to_packet(i, &tracks)).await;
-                        }
-                    }
-                }
+                let duration = tokio::time::Instant::now() - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             request = list_nodes_request_rx.recv() => {
