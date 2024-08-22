@@ -29,7 +29,7 @@ let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("
             relative_x = 0;
         }
     }
-    
+
     ask_attempt = 0;
     while (Number.isNaN(relative_y) || relative_y < -2000 || 2000 < relative_y) {
         relative_y = Number(window.prompt("Relative y?", "0"));
@@ -43,8 +43,8 @@ let relative_y = Number(document.cookie.split("; ").find(row => row.startsWith("
     document.cookie = "relative_y=" + relative_y;
     if (param_changed) {
         window.history.replaceState(null, "", window.location.pathname);
-    }    
-}    
+    }
+}
 
 
 let debugMode = false;
@@ -359,6 +359,19 @@ startSocket();
 // update click on demand
 window.addEventListener("click", function (event) {
     mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y };
+    let node_r = 20;
+    let node_clicked = false;
+    nodelist.forEach(node => {
+        clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
+        if (clickr <= node_r) {
+            socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
+            node_clicked = true;
+        }
+    });
+
+    if (node_clicked)
+        return;
+
     r = Math.sqrt(Math.pow(train_width / 2, 2) + Math.pow(train_height / 2, 2));
     // time complexity (o(n))
     trainposition.forEach(pos => {
@@ -367,14 +380,7 @@ window.addEventListener("click", function (event) {
             socket.send("click\n" + pos.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
         }
     });
-    let node_r = 20;
-    nodelist.forEach(node => {
-        clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
-        if (clickr <= node_r) {
-            socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
-        }
-    });
-    
+
 });
 
 // make window draggable
