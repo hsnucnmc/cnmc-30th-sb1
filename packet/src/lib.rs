@@ -541,7 +541,7 @@ impl std::str::FromStr for CtrlPacket {
                 };
                 let node_type = match split_2[1].parse() {
                     Ok(node_type) => node_type,
-                    Err(_) => return Err("Packet NodeEdit contains a bad coordinate"),
+                    Err(_) => return Err("Packet NodeEdit contains a bad node type"),
                 };
 
                 Ok(CtrlPacket::NodeEdit(id, node_type))
