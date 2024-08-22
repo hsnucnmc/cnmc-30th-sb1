@@ -127,7 +127,7 @@ pub async fn node_get_routing_handler(
 
     Json(match receiver.await {
         Ok(Some(routing_info)) => {
-            println!("{:?}", serde_json::to_string(&routing_info));
+            // println!("{:?}", serde_json::to_string(&routing_info));
             routing_info
         },
         Ok(None) => {

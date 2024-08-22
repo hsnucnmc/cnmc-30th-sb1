@@ -47,6 +47,17 @@ let grid_node = new w2grid({
                 return extra.value?.text || record.nodetype.text;
             }
         },
+        {
+            field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
+            editable: false,
+            render(record, extra) {
+                if (record.nodetype.id == "configurable") {
+                    return "<button class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' \
+                    onclick=\"askSetRouting(" + record.recid + ");\">Set Routing</button>";
+                }
+                return "";
+            }
+        },
     ],
     toolbar: {
         items: [
@@ -334,6 +345,43 @@ window.sendNewTrainRequest = function sendNewTrainRequest(track_id) {
 window.sendReverseTrainRequest = function sendReverseTrainRequest(train_id) {
     socket.send("click\n" + train_id + " 0,1,0");
 }
+
+window.askSetRouting = node_id => {
+    w2popup.open({
+        width: 580,
+        height: 400,
+        title: 'Set Routing for Node ' + node_id,
+        focus: 0,
+        body:
+            `<div class="w2ui-centered" style="line-height: 1.8">
+            <div>
+            <span tabindex="0">Enter the new routing data for node `+ node_id + `.</span>
+            <div class="w2ui-field">
+            <label for="startnodeid">Routing Data:</label><br>
+            <textarea id="input_routing_data" rows="8" cols="50"></textarea>
+            </div>
+            <br>
+            </div>
+            </div>`,
+        actions: {
+            Ok() {
+                fetch(new Request("/nodes/" + node_id + "/routing", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                      },                    
+                    body: document.getElementById('input_routing_data').value,
+                })).then(response => {
+                    console.log("Set node routing for node "+ node_id + ": " + response.statusText);
+                });
+                w2popup.close()
+            },
+            Cancel() {
+                w2popup.close()
+            }
+        },
+    });
+};
 
 function redraw(time) {
     trainlist.forEach((train, id) => {
