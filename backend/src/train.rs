@@ -1101,6 +1101,10 @@ pub async fn train_master(
 
                 let wait_end = tokio::time::Instant::now();
 
+
+                let duration = wait_end - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
+
                 if let Some(node) = nodes.get_mut(&switched_id) {
                     if let Some(router) = &mut node.router {
                         router.clicked(&mut thread_rng());
@@ -1109,13 +1113,13 @@ pub async fn train_master(
                         channel.send(node.to_packet()).await;
                     }
                 }
-
-                let duration = wait_end - wait_start;
-                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             ctrl_packet = ctrl_rx.recv() => {
                 let ctrl_packet = ctrl_packet.unwrap();
+                let duration = tokio::time::Instant::now() - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
+
                 match ctrl_packet {
                     CtrlPacket::NewNode(coord, conn_type) => {
                         let mut new_node = Node {
@@ -1259,9 +1263,6 @@ pub async fn train_master(
                     }
                     _ => {},
                 }
-
-                let duration = tokio::time::Instant::now() - wait_start;
-                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             request_result = view_request_rx.recv() => {
