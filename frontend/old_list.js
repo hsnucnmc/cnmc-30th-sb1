@@ -237,24 +237,41 @@ function startSocket() {
                             y_input.type = "number";
                             let move_button = document.createElement("button");
                             move_button.innerText = "MOVE";
-
+                            let click_button = document.createElement("button");
+                            click_button.innerText = "CLICK";
+                            
                             new_row = nodeHTMLTable.insertRow(-1);
                             new_row.insertCell(-1); // id
+                            new_row.insertCell(-1); // node type
                             new_row.insertCell(-1).append(x_input); // x position
                             new_row.insertCell(-1).append(y_input); // y position
-                            new_row.insertCell(-1).append(move_button); // move_button
+                            let actions = new_row.insertCell(-1);
+                            actions.append(move_button); // move_button
+                            actions.append(click_button); // click_button
                         }
 
                         let cells = new_row.children;
                         cells[0].innerText = new_node.id;
-                        cells[1].children[0].value = new_node.x;
-                        cells[2].children[0].value = new_node.y;
+                        fetch("/nodes/"+new_node.id).then(response => {
+                            return response.json();
+                        }).then(type => {
+                            cells[1].innerText = type;
+                            if(type == "Configurable") {
+                                cells[1].innerHTML = '<a href="/nodes/'+  new_node.id +'/routing">Configurable</a>';
+                            }
+                        });
+                        cells[2].children[0].value = new_node.x;
+                        cells[3].children[0].value = new_node.y;
 
-                        new_node.x_input = cells[1].children[0];
-                        new_node.y_input = cells[2].children[0];
+                        new_node.x_input = cells[2].children[0];
+                        new_node.y_input = cells[3].children[0];
 
-                        cells[3].children[0].onclick = () => {
+                        cells[4].children[0].onclick = () => {
                             ctrl_socket.send("node_move\n" + new_node.id + " " + new_node.x_input.value + ";" + new_node.y_input.value);
+                        };
+
+                        cells[4].children[1].onclick = () => {
+                            socket.send("switch\n" + new_node.id + " 0,0,0");
                         };
 
                         new_node.html_row = new_row;
