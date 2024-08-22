@@ -1,0 +1,1 @@
+{"0":{"id":0,"coord":[0.0,0.0],"connections":{"0":"Both","1":"Backward","2":"Backward"},"conn_type":"RoundRobin","routing_info":null},"1":{"id":1,"coord":[-500.0,0.0],"connections":{"1":"Forward"},"conn_type":"Random","routing_info":null},"2":{"id":2,"coord":[0.0,500.0],"connections":{"2":"Forward"},"conn_type":"RoundRobin","routing_info":null}}

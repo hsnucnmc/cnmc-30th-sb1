@@ -158,7 +158,9 @@ impl Node {
                 let next_track = self.connections.iter().nth(nth).unwrap();
                 if self.connections.len() == 1 {
                     match self.connections.get(&current_track).unwrap() {
-                        MultiDirection::Both => break RoutingType::Track((current_track, current_direction)),
+                        MultiDirection::Both => {
+                            break RoutingType::Track((current_track, current_direction))
+                        }
                         MultiDirection::Forward => break RoutingType::BounceBack,
                         MultiDirection::Backward => break RoutingType::BounceBack,
                     }
@@ -170,32 +172,31 @@ impl Node {
                     ));
                 } else {
                     match self.connections.get(&current_track).unwrap() {
-                        MultiDirection::Both => break RoutingType::Track((current_track, current_direction)),
-                        MultiDirection::Forward => {},
-                        MultiDirection::Backward => {},
+                        MultiDirection::Both => {
+                            break RoutingType::Track((current_track, current_direction))
+                        }
+                        MultiDirection::Forward => {}
+                        MultiDirection::Backward => {}
                     }
                 }
             },
-            NodeType::RoundRobin => match self.connections.get(&current_track).unwrap() {
-                MultiDirection::Both => {
-                    // if current_direction == Direction::Forward {
-                    //     RoutingType::Track((
-                    //         *next_track.0,
-                    //         !next_track.1.sample(&mut thread_rng()),
-                    //     ))
-                    // }
-                    todo!()
-                }
-                MultiDirection::Forward | MultiDirection::Backward => {
-                    todo!();
-                    self.connections
-                        .range(current_track + 1..=TrackID::MAX)
-                        .next()
-                        .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap());
-                }
+            NodeType::RoundRobin => {
+                let next_track = self
+                    .connections
+                    .range(current_track + 1..=TrackID::MAX)
+                    .next()
+                    .unwrap_or(self.connections.range(0..=TrackID::MAX).next().unwrap());
+
+                RoutingType::Track((
+                    *next_track.0,
+                    match next_track.1 {
+                        MultiDirection::Forward => Direction::Backward,
+                        MultiDirection::Backward => Direction::Forward,
+                        MultiDirection::Both => Direction::Forward,
+                    },
+                ))
             },
             NodeType::Reverse => RoutingType::BounceBack,
-            // TODO: implement the new node types
             NodeType::Derail => RoutingType::Derail,
             NodeType::Configurable => self
                 .router
@@ -1198,7 +1199,7 @@ pub async fn train_master(
                                             .collect(),
                                     ))
                                     .await;
-                        }
+                            }
                         }
                     }
                     CtrlPacket::TrackAdjust(track_id, diff) => {
@@ -1219,6 +1220,31 @@ pub async fn train_master(
                         }
                     }
                     // TODO: implement the new CtrlPackets
+                    CtrlPacket::NodeEdit(node_id, node_type) => {
+                        if let Some(node) = nodes.get_mut(&node_id) {
+                            node.conn_type = node_type;
+                            if node_type == NodeType::Configurable {
+                                node.routing_info = Some(RoutingInfo::default());
+                                node.router = Some(RoutingInfo::default().build());
+                            } else {
+                                node.routing_info = None;
+                                node.router = None;
+                            }
+
+                            // TODO: The effects of adjusting tracks while there's train on them is ignored
+                            for channel in viewer_channels.values() {
+                                channel.send(node.to_packet()).await;
+                                channel
+                                    .send(ServerPacket::PacketTRACK(
+                                        tracks
+                                            .iter()
+                                            .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+                                            .collect(),
+                                    ))
+                                    .await;
+                            }
+                        }
+                    }
                     _ => {},
                 }
 
