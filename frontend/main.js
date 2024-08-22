@@ -367,6 +367,14 @@ window.addEventListener("click", function (event) {
             socket.send("click\n" + pos.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
         }
     });
+    let node_r = 20;
+    nodelist.forEach(node => {
+        clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
+        if (clickr <= node_r) {
+            socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
+        }
+    });
+    
 });
 
 // make window draggable
