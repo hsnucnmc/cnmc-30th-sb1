@@ -13,6 +13,7 @@ pub struct AppState {
         oneshot::Sender<(
             mpsc::Receiver<ServerPacket>,
             mpsc::Sender<(TrainID, ClickModifier)>,
+            mpsc::Sender<(NodeID, ClickModifier)>,
         )>,
     >,
     pub ctrl_request_tx: mpsc::Sender<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,

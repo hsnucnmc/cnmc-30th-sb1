@@ -199,7 +199,7 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
         }
     };
 
-    let (mut update_receiver, click_sender) = match substribe_request_rx.await {
+    let (mut update_receiver, click_sender, switch_sender) = match substribe_request_rx.await {
         Ok(rx) => rx,
         Err(_) => {
             println!("Failed to subscribe to train updates");
@@ -253,8 +253,15 @@ async fn ws_client_handler(mut socket: ws::WebSocket, state: AppState) {
                             }
                         }
                     }
-                    // TODO: parse and passes switch packet to train master
-                    _ => {}
+                    ClientPacket::PacketSWITCH(node_id, modifier) => {
+                        match switch_sender.send((node_id, modifier)).await {
+                            Ok(_) => (),
+                            Err(_) => {
+                                println!("Failed sending switch updates to train master");
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 

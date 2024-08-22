@@ -195,7 +195,7 @@ impl Node {
                         MultiDirection::Both => Direction::Forward,
                     },
                 ))
-            },
+            }
             NodeType::Reverse => RoutingType::BounceBack,
             NodeType::Derail => RoutingType::Derail,
             NodeType::Configurable => self
@@ -986,6 +986,7 @@ pub async fn train_master(
         oneshot::Sender<(
             mpsc::Receiver<ServerPacket>,
             mpsc::Sender<(TrainID, ClickModifier)>,
+            mpsc::Sender<(NodeID, ClickModifier)>,
         )>,
     >,
     mut ctrl_request_rx: mpsc::Receiver<oneshot::Sender<mpsc::Sender<CtrlPacket>>>,
@@ -1022,6 +1023,7 @@ pub async fn train_master(
     let mut viewer_channels: BTreeMap<u32, mpsc::Sender<ServerPacket>> = BTreeMap::new();
     let mut next_viewer_serial = 0u32;
     let (click_tx, mut click_rx) = mpsc::channel::<(TrainID, ClickModifier)>(32);
+    let (switch_tx, mut switch_rx) = mpsc::channel::<(NodeID, ClickModifier)>(32);
     let (ctrl_tx, mut ctrl_rx) = mpsc::channel::<CtrlPacket>(64);
 
     loop {
@@ -1091,6 +1093,25 @@ pub async fn train_master(
                         channel.send(clicked.to_packet(clicked_id, &tracks)).await;
                     }
                 }
+            }
+
+            switched = switch_rx.recv() => {
+                let (switched_id, modifier) = switched.unwrap();
+                println!("Node#{} is clicked, \n {:?}", switched_id, modifier);
+
+                let wait_end = tokio::time::Instant::now();
+
+                if let Some(node) = nodes.get_mut(&switched_id) {
+                    if let Some(router) = &mut node.router {
+                        router.clicked(&mut thread_rng());
+                    }
+                    for channel in viewer_channels.values() {
+                        channel.send(node.to_packet()).await;
+                    }
+                }
+
+                let duration = wait_end - wait_start;
+                move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
             }
 
             ctrl_packet = ctrl_rx.recv() => {
@@ -1231,17 +1252,8 @@ pub async fn train_master(
                                 node.router = None;
                             }
 
-                            // TODO: The effects of adjusting tracks while there's train on them is ignored
                             for channel in viewer_channels.values() {
                                 channel.send(node.to_packet()).await;
-                                channel
-                                    .send(ServerPacket::PacketTRACK(
-                                        tracks
-                                            .iter()
-                                            .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
-                                            .collect(),
-                                    ))
-                                    .await;
                             }
                         }
                     }
@@ -1257,7 +1269,7 @@ pub async fn train_master(
                 let response_tx = request_result.unwrap();
                 let (notify_tx, notify_rx) = mpsc::channel(4);
 
-                response_tx.send((notify_rx, click_tx.clone())).unwrap();
+                response_tx.send((notify_rx, click_tx.clone(), switch_tx.clone())).unwrap();
                 for (_, node) in nodes.iter() {
                     notify_tx.send(node.to_packet()).await.unwrap();
                 }
