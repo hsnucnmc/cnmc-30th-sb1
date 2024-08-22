@@ -389,9 +389,10 @@ function startSocket() {
         // explosionSerial = 0;
         // explosionList = new Map();
 
-
-
-
+        grid_node.clear();
+        grid_train.clear();
+        grid_track.clear();
+        
         derail_img.remove();
         document.getElementById("status-container").innerText = "Connected! " + new Date();;
 
