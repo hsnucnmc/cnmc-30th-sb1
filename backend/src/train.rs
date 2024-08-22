@@ -1392,7 +1392,6 @@ pub async fn train_master(
                                 .await;
                         }
                     }
-                    // TODO: implement the new CtrlPackets
                     CtrlPacket::NodeEdit(node_id, node_type) => {
                         if let Some(node) = nodes.get_mut(&node_id) {
                             node.conn_type = node_type;

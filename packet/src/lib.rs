@@ -463,7 +463,6 @@ impl std::str::FromStr for CtrlPacket {
         let split: Vec<&str> = input.split("\n").collect();
 
         match split[0] {
-            // TODO: check for valid node, train and track ids
             "node_new" => {
                 if split[1].split(" ").count() != 2 {
                     return Err("Packet NewNode has unexpected amount of whitespaces");
