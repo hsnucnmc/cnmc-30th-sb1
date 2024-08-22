@@ -8,7 +8,9 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use packet::*;
 
-use crate::routing::{AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingStateID, RoutingType};
+use crate::routing::{
+    AfterEffects, BuiltRouter, CompoundRoutingType, RoutingInfo, RoutingStateID, RoutingType,
+};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum MultiDirection {
@@ -151,7 +153,12 @@ impl Node {
         ServerPacket::PacketNODE(self.id, self.coord)
     }
 
-    fn next_track(&mut self, current_track: TrackID, current_direction: Direction) -> RoutingType {
+    fn next_track(
+        &mut self,
+        current_track: TrackID,
+        current_direction: Direction,
+        node_changed: &mut bool,
+    ) -> RoutingType {
         match self.conn_type {
             NodeType::Random => loop {
                 let nth = thread_rng().gen_range(0..self.connections.len());
@@ -198,11 +205,11 @@ impl Node {
             }
             NodeType::Reverse => RoutingType::BounceBack,
             NodeType::Derail => RoutingType::Derail,
-            NodeType::Configurable => self
-                .router
-                .as_mut()
-                .unwrap()
-                .route(&mut thread_rng(), (current_track, current_direction)),
+            NodeType::Configurable => self.router.as_mut().unwrap().route(
+                &mut thread_rng(),
+                (current_track, current_direction),
+                node_changed,
+            ),
         }
     }
 }
@@ -307,6 +314,7 @@ impl TrainInstance {
         duration: Duration,
         nodes: &mut BTreeMap<NodeID, Node>,
         tracks: &BTreeMap<TrackID, TrackPiece>,
+        changed_nodes: &mut BTreeSet<NodeID>,
     ) -> MoveResult {
         let train = self;
         let mut flag = false;
@@ -345,7 +353,8 @@ impl TrainInstance {
                     }
                 };
 
-                match end_node.next_track(train.current_track, train.direction) {
+                let mut node_changed = false;
+                match end_node.next_track(train.current_track, train.direction, &mut node_changed) {
                     RoutingType::Derail => return MoveResult::Derailed,
                     RoutingType::BounceBack => {
                         train.direction = !train.direction;
@@ -354,6 +363,10 @@ impl TrainInstance {
                         train.current_track = track;
                         train.direction = direction;
                     }
+                }
+
+                if node_changed {
+                    changed_nodes.insert(end_node.id);
                 }
 
                 train.progress = match train.direction {
@@ -956,7 +969,14 @@ async fn move_single_train_and_notify(
     train: &mut TrainInstance,
     viewer_channels: &BTreeMap<u32, mpsc::Sender<ServerPacket>>,
 ) -> bool {
-    let result = train.move_with_time(duration, nodes, tracks);
+    // possible perf improvement; aggregate changed nodes
+    let mut changed_nodes = BTreeSet::new();
+    let result = train.move_with_time(duration, nodes, tracks, &mut changed_nodes);
+    for node_id in changed_nodes {
+        for (_, channel) in viewer_channels.iter() {
+            channel.send(nodes.get(&node_id).unwrap().to_packet()).await;
+        }
+    }
     let packet = result.make_packet(id, &tracks);
     if let Some(packet) = packet {
         for (_, channel) in viewer_channels.iter() {
@@ -1267,11 +1287,14 @@ pub async fn train_master(
                 move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
 
                 if let Some(node) = nodes.get_mut(&switched_id) {
+                    let mut node_changed = false;
                     if let Some(router) = &mut node.router {
-                        router.clicked(&mut thread_rng());
+                        router.clicked(&mut thread_rng(), &mut node_changed);
                     }
-                    for channel in viewer_channels.values() {
-                        channel.send(node.to_packet()).await;
+                    if node_changed {
+                        for channel in viewer_channels.values() {
+                            channel.send(node.to_packet()).await;
+                        }
                     }
                 }
             }

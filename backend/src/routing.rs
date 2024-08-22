@@ -389,6 +389,7 @@ impl BuiltRouter {
         &mut self,
         rng: &mut R,
         incoming: (TrackID, Direction),
+        state_changed: &mut bool,
     ) -> RoutingType {
         if !self.configured {
             return RoutingType::BounceBack;
@@ -397,18 +398,24 @@ impl BuiltRouter {
         let current_state = self.states.get(&self.current_state).unwrap();
         let outgoing = current_state.routings.get(&incoming).unwrap().0.sample(rng);
         if let Some(new_state) = current_state.routings.get(&incoming).unwrap().1.sample(rng) {
+            if self.current_state != new_state {
+                *state_changed = true;
+            }
             self.current_state = new_state;
         }
 
         outgoing
     }
 
-    pub fn clicked<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+    pub fn clicked<R: Rng + ?Sized>(&mut self, rng: &mut R, state_changed: &mut bool) {
         if !self.configured {
             return;
         }
         let current_state = self.states.get(&self.current_state).unwrap();
         if let Some(new_state) = current_state.after_click.sample(rng) {
+            if self.current_state != new_state {
+                *state_changed = true;
+            }
             self.current_state = new_state;
         }
     }
