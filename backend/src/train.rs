@@ -1469,6 +1469,10 @@ pub async fn train_master(
                 let duration = tokio::time::Instant::now() - wait_start;
                 move_trains_and_notify(duration, &mut nodes, &tracks, &mut trains, &viewer_channels).await;
 
+                for (id, train) in trains.iter() {
+                    notify_tx.send(train.to_packet(*id, &tracks)).await.unwrap();
+                }
+
                 viewer_channels.insert(next_viewer_serial, notify_tx);
                 next_viewer_serial += 1;
             }
