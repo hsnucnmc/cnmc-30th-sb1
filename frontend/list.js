@@ -48,14 +48,17 @@ let grid_node = new w2grid({
             }
         },
         {
-            field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
+            field: 'action', text: 'Action', size: '300px', sortable: false, resizable: true,
             editable: false,
             render(record, extra) {
                 if (record.nodetype.id == "configurable") {
-                    return "<button class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' \
-                    onclick=\"askSetRouting(" + record.recid + ");\">Set Routing</button>";
+                    return "<button  class='bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendNodeDeletionRequest(" +
+                        + record.recid + ");\">Delete Node</button>"
+                        + "<button class='ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full'"
+                        + "onclick=\"askSetRouting(" + record.recid + ");\">Set Routing</button>";
                 }
-                return "";
+                return "<button  class='bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendNodeDeletionRequest("
+                    + record.recid + ");\">Delete Node</button>";
             }
         },
     ],
@@ -140,10 +143,13 @@ let grid_track = new w2grid({
             }
         },
         {
-            field: 'action', text: 'Action', size: '200px', sortable: false, resizable: true,
+            field: 'action', text: 'Action', size: '300px', sortable: false, resizable: true,
             editable: false,
             render(record, extra) {
-                return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendNewTrainRequest(" + record.recid + ");\">New Train</button>";
+                return "<button  class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendNewTrainRequest("
+                    + record.recid + ");\">New Train</button>"
+                    + "<button  class='ml-2 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full' onclick=\"sendTrackDeletionRequest("
+                    + record.recid + ");\">Delete Track</button>";
             }
         },
     ],
@@ -338,12 +344,20 @@ let derail_img = new Image();
 derail_img.id = "derail-img";
 derail_img.src = "derail.png";
 
-window.sendNewTrainRequest = function sendNewTrainRequest(track_id) {
+window.sendNewTrainRequest = track_id => {
     ctrl_socket.send("train_new\n" + track_id + " " + (Math.random() * 200 + 400));
 }
 
-window.sendReverseTrainRequest = function sendReverseTrainRequest(train_id) {
+window.sendReverseTrainRequest = train_id => {
     socket.send("click\n" + train_id + " 0,1,0");
+}
+
+window.sendNodeDeletionRequest = node_id => {
+    ctrl_socket.send("node_delete\n" + node_id);
+}
+
+window.sendTrackDeletionRequest = track_id => {
+    ctrl_socket.send("track_delete\n" + track_id);
 }
 
 window.askSetRouting = node_id => {
@@ -369,10 +383,10 @@ window.askSetRouting = node_id => {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                      },                    
+                    },
                     body: document.getElementById('input_routing_data').value,
                 })).then(response => {
-                    console.log("Set node routing for node "+ node_id + ": " + response.statusText);
+                    console.log("Set node routing for node " + node_id + ": " + response.statusText);
                 });
                 w2popup.close()
             },
