@@ -432,7 +432,14 @@ function updateSelectedAsNode() {
     }).then(type => {
         selected_display.innerHTML = "Selected: Node#" + selected_node.id + "<br/>"
             + "Node Type: " + type + "<br/>";
+        let delete_button = document.createElement("button");
+        delete_button.innerText = "Delete Node";
+        delete_button.onclick = _ => {
+            ctrl_socket.send("node_delete\n" + selected_node.id);
+        }
+        selected_display.append(delete_button);
     });
+
     let delete_button = document.createElement("button");
     delete_button.innerText = "Delete Node";
     delete_button.onclick = _ => {
