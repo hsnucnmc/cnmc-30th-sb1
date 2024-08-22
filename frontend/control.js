@@ -418,7 +418,10 @@ startSocket();
 
 // update click on demand
 window.addEventListener("click", function (event) {
-    mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y };
+    let x = event.offsetX / 0.7 + relative_x;
+    let y = event.offsetY / 0.7 + relative_y;
+    let mousePos = { x: x, y: y };
+
     let node_r = 40;
     let node_clicked = false;
     nodelist.forEach(node => {
@@ -446,39 +449,15 @@ window.addEventListener("click", function (event) {
 // make window draggable
 window.addEventListener("mousemove", event => {
     if (event.buttons === 1 && dragMode) {
-        relative_x -= event.movementX;
-        relative_y -= event.movementY;
+        relative_x -= event.movementX / 0.7;
+        relative_y -= event.movementY / 0.7;
         document.cookie = "relative_x=" + relative_x;
         document.cookie = "relative_y=" + relative_y;
     }
 });
 
-
-let current_touches = new Map();
-
-// make window draggable on mobile devices
-window.addEventListener("touchstart", e => {
-    if (!dragMode)
-        return;
-    for (touch of e.targetTouches) {
-        current_touches.set(touch.identifier, { x: touch.screenX, y: touch.screenY });
-    }
-});
-
-window.addEventListener("touchmove", e => {
-    for (touch of e.targetTouches) {
-        let previous = current_touches.get(touch.identifier);
-        let current = { x: touch.screenX, y: touch.screenY };
-        current_touches.set(touch.identifier, current);
-        relative_x -= current.x - previous.x;
-        relative_y -= current.y - previous.y;
-        document.cookie = "relative_x=" + relative_x;
-        document.cookie = "relative_y=" + relative_y;
-    }
-});
-
-window.addEventListener("touchend", e => {
-    for (touch of e.targetTouches) {
-        current_touches.delete(touch.identifier);
-    }
+main_canvas.addEventListener("mousemove", event => {
+    let x = event.offsetX / 0.7 + relative_x;
+    let y = event.offsetY / 0.7 + relative_y;
+    window["mouse-pos-div"].innerText = "x: " + x.toFixed(0) + ", y: " + y.toFixed(0);
 });
