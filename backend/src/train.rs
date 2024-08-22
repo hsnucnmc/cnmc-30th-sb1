@@ -998,6 +998,65 @@ async fn delete_node(
         channel.send(packet.clone()).await;
     }
 
+    let deleted = nodes.remove(&deleting).unwrap();
+    let mut deraileds = Vec::new();
+
+    {
+        for (affecting, _) in deleted.connections {
+            let affected = tracks.remove(&affecting).unwrap();
+            if let Some(affected_start) = nodes.get_mut(&affected.start) {
+                affected_start.connections.remove(&affecting).unwrap();
+
+                if affected_start.conn_type == NodeType::Configurable {
+                    affected_start.routing_info = Some(RoutingInfo::default());
+                    affected_start.router = Some(RoutingInfo::default().build());
+                }
+
+                for channel in viewer_channels.values() {
+                    channel.send(affected_start.to_packet()).await;
+                }
+            }
+
+            if let Some(affected_end) = nodes.get_mut(&affected.end) {
+                affected_end.connections.remove(&affecting).unwrap();
+
+                if affected_end.conn_type == NodeType::Configurable {
+                    affected_end.routing_info = Some(RoutingInfo::default());
+                    affected_end.router = Some(RoutingInfo::default().build());
+                }
+
+                for channel in viewer_channels.values() {
+                    channel.send(affected_end.to_packet()).await;
+                }
+            }
+
+            for (train_id, train) in trains.iter() {
+                if train.current_track == deleting {
+                    for channel in viewer_channels.values() {
+                        channel
+                            .send(ServerPacket::PacketREMOVE(*train_id, RemovalType::Derail))
+                            .await;
+                    }
+                    deraileds.push(*train_id);
+                }
+            }
+        }
+    }
+
+    let packet = ServerPacket::PacketTRACK(
+        tracks
+            .iter()
+            .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+            .collect(),
+    );
+
+    for derailed in deraileds {
+        trains.remove(&derailed).unwrap();
+    }
+    for channel in viewer_channels.values() {
+        channel.send(packet.clone()).await;
+    }
+
     // remove tracks with it as endpoint
     // fix any affected nodes
     // delete the node itself
