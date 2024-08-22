@@ -89,11 +89,41 @@ function redraw(time) {
     main_context.save();
     main_context.translate(-relative_x, -relative_y);
 
-    main_context.fillStyle = "#BBB";
     nodelist.forEach(node => {
+        if (node.clickable) {
+            main_context.fillStyle = "#DD8";
+        } else {
+            main_context.fillStyle = "#BBB";
+        }
         main_context.beginPath();
-        main_context.arc(node.x, node.y, 20, 0, 2 * Math.PI);
+        main_context.arc(node.x, node.y, 40, 0, 2 * Math.PI);
         main_context.fill();
+
+        switch (node.type) {
+            case "reverse": {
+                main_context.fillStyle = "#666";
+                main_context.beginPath();
+                main_context.arc(node.x, node.y, 25, 0, 2 * Math.PI);
+                main_context.fill();
+            }
+                break;
+
+            case "derail": {
+                main_context.fillStyle = "#B66";
+                main_context.beginPath();
+                main_context.arc(node.x, node.y, 40, 0, 2 * Math.PI);
+                main_context.fill();
+            }
+                break;
+
+            case "configurable": {
+                main_context.fillStyle = "#66B";
+                main_context.beginPath();
+                main_context.arc(node.x, node.y, 25, 0, 2 * Math.PI);
+                main_context.fill();
+            }
+                break;
+        }
     });
 
     tracklist.forEach(track => {
@@ -231,7 +261,7 @@ function redraw(time) {
     });
 
 
-    main_context.fillStyle = "#BBB";
+    main_context.fillStyle = "#888";
     main_context.font = "40px monospace";
     nodelist.forEach(node => {
         main_context.fillText(node.id.toString().padStart(3, "0"), node.x - 20, node.y - 25);
@@ -317,7 +347,31 @@ function startSocket() {
                     new_node.id = Number(args[0]);
                     new_node.x = Number(args[1].split(";")[0]);
                     new_node.y = Number(args[1].split(";")[1]);
+                    new_node.type = undefined;
+                    new_node.routing = undefined;
+                    new_node.clickable = false;
                     nodelist.set(new_node.id, new_node);
+
+                    fetch("/nodes/" + new_node.id).then(response => {
+                        return response.json();
+                    }).then(type => {
+                        new_node.type = type;
+                        if (type == "configurable") {
+                            fetch("/nodes/" + new_node.id + "/routing").then(response => {
+                                return response.json();
+                            }).then(routing => {
+                                new_node.routing = routing;
+                                fetch("/nodes/" + new_node.id + "/state").then(response => {
+                                    return response.json();
+                                }).then(state_id => {
+                                    if (new_node.routing.states[state_id].after_click != "Nothing") {
+                                        new_node.clickable = true;
+                                        // console.log("Node#" + new_node.id + " is clickable!");
+                                    };
+                                });
+                            });
+                        }
+                    });
                     break;
                 case "nuke":
                     nodelist.delete(Number(msg_split[1]));
@@ -365,7 +419,7 @@ startSocket();
 // update click on demand
 window.addEventListener("click", function (event) {
     mousePos = { x: event.clientX + relative_x, y: event.clientY + relative_y };
-    let node_r = 20;
+    let node_r = 40;
     let node_clicked = false;
     nodelist.forEach(node => {
         clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
