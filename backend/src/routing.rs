@@ -357,7 +357,10 @@ impl RoutingInfo {
     }
 
     pub fn build(self) -> BuiltRouter {
-        assert!(self.states.contains_key(&self.default_state));
+        if self.configured {
+            assert!(self.states.contains_key(&self.default_state));
+        }
+
         BuiltRouter {
             configured: self.configured,
             current_state: self.default_state,
