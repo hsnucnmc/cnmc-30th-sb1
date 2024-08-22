@@ -981,6 +981,90 @@ async fn move_trains_and_notify(
         let _ = trains.remove(&i).unwrap();
     }
 }
+
+async fn delete_node(
+    deleting: NodeID,
+    nodes: &mut BTreeMap<NodeID, Node>,
+    tracks: &mut BTreeMap<TrackID, TrackPiece>,
+    trains: &mut BTreeMap<TrainID, TrainInstance>,
+    viewer_channels: &BTreeMap<u32, mpsc::Sender<ServerPacket>>,
+) {
+    if nodes.get(&deleting) == None {
+        return;
+    }
+
+    // remove tracks with it as endpoint
+    // fix any affected nodes
+    // delete the node itself
+    // remove any train that's on the affected track
+}
+
+async fn delete_track(
+    deleting: TrackID,
+    nodes: &mut BTreeMap<NodeID, Node>,
+    tracks: &mut BTreeMap<TrackID, TrackPiece>,
+    trains: &mut BTreeMap<TrainID, TrainInstance>,
+    viewer_channels: &BTreeMap<u32, mpsc::Sender<ServerPacket>>,
+) {
+    if tracks.get(&deleting) == None {
+        return;
+    }
+
+    let deleted = tracks.remove(&deleting).unwrap();
+    {
+        let deleted_start = nodes.get_mut(&deleted.start).unwrap();
+        deleted_start.connections.remove(&deleting).unwrap();
+
+        if deleted_start.conn_type == NodeType::Configurable {
+            deleted_start.routing_info = Some(RoutingInfo::default());
+            deleted_start.router = Some(RoutingInfo::default().build());
+        }
+
+        for channel in viewer_channels.values() {
+            channel.send(deleted_start.to_packet()).await;
+        }
+    }
+
+    if deleted.start != deleted.end {
+        let deleted_end = nodes.get_mut(&deleted.end).unwrap();
+        deleted_end.connections.remove(&deleting).unwrap();
+
+        if deleted_end.conn_type == NodeType::Configurable {
+            deleted_end.routing_info = Some(RoutingInfo::default());
+            deleted_end.router = Some(RoutingInfo::default().build());
+        }
+
+        for channel in viewer_channels.values() {
+            channel.send(deleted_end.to_packet()).await;
+        }
+    }
+
+    let packet = ServerPacket::PacketTRACK(
+        tracks
+            .iter()
+            .map(|a| (*a.0, a.1.path, a.1.color.clone(), a.1.thickness))
+            .collect(),
+    );
+    for channel in viewer_channels.values() {
+        channel.send(packet.clone()).await;
+    }
+
+    let mut deraileds = Vec::new();
+    for (train_id, train) in trains.iter() {
+        if train.current_track == deleting {
+            for channel in viewer_channels.values() {
+                channel
+                    .send(ServerPacket::PacketREMOVE(*train_id, RemovalType::Derail))
+                    .await;
+            }
+            deraileds.push(*train_id);
+        }
+    }
+    for derailed in deraileds {
+        trains.remove(&derailed).unwrap();
+    }
+}
+
 pub async fn train_master(
     mut view_request_rx: mpsc::Receiver<
         oneshot::Sender<(
@@ -1261,7 +1345,12 @@ pub async fn train_master(
                             }
                         }
                     }
-                    _ => {},
+                    CtrlPacket::NodeDelete(node_id) => {
+                        delete_node(node_id, &mut nodes, &mut tracks, &mut trains, &viewer_channels).await;
+                    }
+                    CtrlPacket::TrackDelete(track_id) => {
+                        delete_track(track_id, &mut nodes, &mut tracks, &mut trains, &viewer_channels).await;
+                    }
                 }
             }
 

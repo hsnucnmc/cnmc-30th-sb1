@@ -295,6 +295,7 @@ function startSocket() {
                     trainlist.set(Number(args[0]), new_train);
                     break;
                 case "track":
+                    tracklist.clear();
                     for (i = 2; i < msg_split.length; i++) {
                         args = msg_split[i].split(" ");
                         let track = {};

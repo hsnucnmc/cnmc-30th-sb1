@@ -184,6 +184,11 @@ function startSocket() {
                     }
                     break;
                 case "track":
+                    tracklist = new Map();
+                    while (trackHTMLTable.rows.length > 1) {
+                        trackHTMLTable.deleteRow(-1);
+                    }
+                    
                     for (i = 2; i < msg_split.length; i++) {
                         args = msg_split[i].split(" ");
                         let new_track = {};

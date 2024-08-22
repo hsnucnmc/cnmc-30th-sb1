@@ -529,6 +529,7 @@ function startSocket() {
                     }
                     break;
                 case "track":
+                    grid_track.clear();
                     for (let i = 2; i < msg_split.length; i++) {
                         let args = msg_split[i].split(" ");
                         let new_track = {};
@@ -547,10 +548,10 @@ function startSocket() {
                             grid_track.records[recordindex].start = "(" + cordlist[0] + "," + cordlist[1] + ")";
                             grid_track.records[recordindex].end = "(" + cordlist[cordlist.length - 2] + "," + cordlist[cordlist.length - 1] + ")";
                             grid_track.records[recordindex].color = new_track.color;
-                            grid_track.update();
                         }
                         tracklist.set(Number(args[0]), new_track);
                     }
+                    grid_track.update();
                     break;
                 case "node":
                     {
