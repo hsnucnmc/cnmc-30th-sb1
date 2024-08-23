@@ -379,6 +379,10 @@ function startSocket() {
                     break;
                 case "nuke":
                     nodelist.delete(Number(msg_split[1]));
+                    if (selected_node.id == Number(msg_split[1])) {
+                        selected_node = null;
+                        updateSelectedAsNode();
+                    }
                     break;
                 case "remove":
                     args = msg_split[1].split(" ");
@@ -425,8 +429,12 @@ let selected_train = null;
 
 function updateSelectedAsNode() {
     let selected_display = document.getElementById("selected-display");
+    if(selected_node === null) {
+        selected_display.innerHTML = "Selecetd: None";
+        return;
+    }
     selected_display.innerHTML = "Selected: Node#" + selected_node.id + "<br/>"
-        + "Node Type: ??????<br/>";
+    + "Node Type: ??????<br/>";
     fetch("/nodes/" + selected_node.id).then(response => {
         return response.json();
     }).then(type => {
@@ -444,12 +452,23 @@ function updateSelectedAsNode() {
     delete_button.innerText = "Delete Node";
     delete_button.onclick = _ => {
         ctrl_socket.send("node_delete\n" + selected_node.id);
+        selected_node = null;
     }
     selected_display.append(delete_button);
 }
 
+main_canvas.addEventListener("mousedown", event => {
+    if (event.button === 2) {
+        let x = event.offsetX / 0.7 + relative_x;
+        let y = event.offsetY / 0.7 + relative_y;
+        ctrl_socket.send("node_new\n" + x + ";" + y + " random");
+        return;
+    }
+});
+
+
 // update click on demand
-window.addEventListener("click", function (event) {
+main_canvas.addEventListener("click", function (event) {
     let x = event.offsetX / 0.7 + relative_x;
     let y = event.offsetY / 0.7 + relative_y;
     let mousePos = { x: x, y: y };
@@ -460,8 +479,15 @@ window.addEventListener("click", function (event) {
         clickr = Math.sqrt(Math.pow(mousePos.x - node.x, 2) + Math.pow(mousePos.y - node.y, 2));
         if (clickr <= node_r) {
             // socket.send("switch\n" + node.id + " " + Number(event.ctrlKey) + "," + Number(event.shiftKey) + "," + Number(event.altKey));
-            selected_node = node;
-            node_clicked = true;
+            if (event.shiftKey) {
+                if (selected_node) {
+                    ctrl_socket.send("track_new\n" + selected_node.id + " " + node.id + " #6CF");
+                    node_clicked = true;
+                }
+            } else {
+                selected_node = node;
+                node_clicked = true;
+            }
         }
     });
 
@@ -487,33 +513,36 @@ window.addEventListener("click", function (event) {
         selected_node = null;
         let selected_display = document.getElementById("selected-display");
         selected_display.innerHTML = "Selected: Train#" + selected_train + "<br/>";
-
-        // let delete_button = document.createElement("button");
-        // delete_button.innerText = "Delete Train";
-        // delete_button.onclick = _ => {
-        //     ctrl_socket.send("node_delete\n"+selected_node.id);
-        // }
-        // selected_display.append(delete_button);
         return;
-    }
+    } 
 
+    selected_node = null;
+    selected_train = null;
+    let selected_display = document.getElementById("selected-display");
+    selected_display.innerHTML = "Selected: None";
     event.preventDefault();
     return false;
 });
 
-window.addEventListener("contextmenu",
+main_canvas.addEventListener("contextmenu",
     event => {
         event.preventDefault();
         return false;
     });
 
 // make window draggable
-window.addEventListener("mousemove", event => {
+main_canvas.addEventListener("mousemove", event => {
     if (event.buttons === 1 && dragMode) {
-        relative_x -= event.movementX / 0.7;
-        relative_y -= event.movementY / 0.7;
-        document.cookie = "relative_x=" + relative_x;
-        document.cookie = "relative_y=" + relative_y;
+        if (selected_node) {
+            selected_node.x += event.movementX / 0.7;
+            selected_node.y += event.movementY / 0.7;
+            ctrl_socket.send("node_move\n" + selected_node.id + " " + selected_node.x + ";" + selected_node.y);
+        } else {
+            relative_x -= event.movementX / 0.7;
+            relative_y -= event.movementY / 0.7;
+            document.cookie = "relative_x=" + relative_x;
+            document.cookie = "relative_y=" + relative_y;
+        }
     }
 });
 
