@@ -580,6 +580,32 @@ main_canvas.addEventListener("click", function (event) {
     let y = event.offsetY / 0.7 + relative_y;
     let mousePos = { x: x, y: y };
 
+    let cp_clicked = false;
+    tracklist.forEach(track => {
+        track.control_points.forEach(point => {
+            const CONTROL_POINT_R = 25 / 0.7;
+            clickr = Math.sqrt(Math.pow(mousePos.x - point.x, 2) + Math.pow(mousePos.y - point.y, 2));
+            if (clickr <= CONTROL_POINT_R) {
+                if (event.shiftKey) {
+                    if (selected_node) {
+                        // ctrl_socket.send("track_new\n" + selected_node.id + " " + node.id + " #6CF");
+                        cp_clicked = true;
+                    }
+                } else {
+                    selected_cp = point;
+                    cp_clicked = true;
+                }
+            }
+        });
+    });
+    
+    if (cp_clicked) {
+        selected_train = null;
+        selected_node = null;
+        updateSelectedAsCP();
+        return;
+    }
+    
     let node_r = 40 / 0.7;
     let node_clicked = false;
     nodelist.forEach(node => {
@@ -602,32 +628,6 @@ main_canvas.addEventListener("click", function (event) {
         selected_train = null;
         selected_cp = null;
         updateSelectedAsNode();
-        return;
-    }
-
-    let cp_clicked = false;
-    tracklist.forEach(track => {
-        track.control_points.forEach(point => {
-            const CONTROL_POINT_R = 25 / 0.7;
-            clickr = Math.sqrt(Math.pow(mousePos.x - point.x, 2) + Math.pow(mousePos.y - point.y, 2));
-            if (clickr <= CONTROL_POINT_R) {
-                if (event.shiftKey) {
-                    if (selected_node) {
-                        // ctrl_socket.send("track_new\n" + selected_node.id + " " + node.id + " #6CF");
-                        cp_clicked = true;
-                    }
-                } else {
-                    selected_cp = point;
-                    cp_clicked = true;
-                }
-            }
-        });
-    });
-
-    if (cp_clicked) {
-        selected_train = null;
-        selected_node = null;
-        updateSelectedAsCP();
         return;
     }
 
