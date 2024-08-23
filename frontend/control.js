@@ -128,6 +128,27 @@ function redraw(time) {
 
     tracklist.forEach(track => {
         drawTrack(main_context, track);
+        track.control_points.forEach(point => {
+            switch (point.type) {
+                case "none":
+                    main_context.fillStyle = "#666666";
+                    break;
+                case "b2":
+                    main_context.fillStyle = "#AA6666";
+                    break;
+                case "b31":
+                    main_context.fillStyle = "#A6F";
+                    break;
+                case "b32":
+                    main_context.fillStyle = "#A6C";
+                    break;
+            }
+
+            main_context.beginPath();
+            main_context.arc(point.x, point.y, 25, 0, 2 * Math.PI);
+            main_context.fill();
+        }
+        )
     });
 
     explosionList.forEach((explosion, explosion_id) => {
@@ -334,13 +355,38 @@ function startSocket() {
                         let track = {};
                         let cordlist = args[1].split(";").map(x => Number(x));
                         cordlist.shift();
-                        track.cordlist = cordlist
+                        track.cordlist = cordlist;
+                        track.control_points = [];
+                        if (track.cordlist.length == 4) {
+                            track.control_points.push({ x: (cordlist[0] + cordlist[2]) / 2, y: (cordlist[1] + cordlist[3]) / 2, track: track, type: "none" });
+                        }
+                        if (track.cordlist.length == 6) {
+                            track.control_points.push({ x: cordlist[2], y: cordlist[3], track: track, type: "b2" });
+                            // track.control_points.push(bezierPoint(cordlist, 0.5));
+                            // track.control_points[1].track = track;
+                        }
+                        if (track.cordlist.length == 8) {
+                            track.control_points.push({ x: cordlist[2], y: cordlist[3], track: track, type: "b31" });
+                            track.control_points.push({ x: cordlist[4], y: cordlist[5], track: track, type: "b32" });
+                            track.control_points.push(bezierPoint(cordlist, 0.5));
+                            track.control_points[2].track = track;
+                            track.control_points[2].type = "none";
+                        }
+
                         track.color = args[2];
                         track.thickness = Number(args[3]);
                         track.length = bezierRoughLength(cordlist);
+                        track.id = Number(args[0]);
 
                         tracklist.set(Number(args[0]), track);
                     }
+
+                    if (selected_cp && !tracklist.has(selected_cp.track.id)) {
+                        console.log("track deleted?");
+                        selected_cp = null;
+                    }
+                    updateSelectedAsCP();
+
                     break;
                 case "node":
                     args = msg_split[1].split(" ");
@@ -426,15 +472,17 @@ startSocket();
 
 let selected_node = null;
 let selected_train = null;
+let selected_cp = null;
 
 function updateSelectedAsNode() {
     let selected_display = document.getElementById("selected-display");
-    if(selected_node === null) {
+    if (selected_node === null) {
         selected_display.innerHTML = "Selecetd: None";
         return;
     }
+
     selected_display.innerHTML = "Selected: Node#" + selected_node.id + "<br/>"
-    + "Node Type: ??????<br/>";
+        + "Node Type: ??????<br/>";
     fetch("/nodes/" + selected_node.id).then(response => {
         return response.json();
     }).then(type => {
@@ -455,6 +503,65 @@ function updateSelectedAsNode() {
         selected_node = null;
     }
     selected_display.append(delete_button);
+}
+
+function updateSelectedAsCP() {
+    let selected_display = document.getElementById("selected-display");
+    if (selected_cp === null) {
+        selected_display.innerHTML = "Selecetd: None";
+        return;
+    }
+
+    let track_type = "Straight";
+    if (selected_cp.track.cordlist.length == 6) {
+        track_type = "Quadratic Bezier";
+    }
+    if (selected_cp.track.cordlist.length == 8) {
+        track_type = "Cubic Bezier";
+    }
+
+    selected_display.innerHTML = "Selected: Track#" + selected_cp.track.id + "<br/>"
+        + "Track Type: " + track_type + "<br/>";
+
+    let delete_button = document.createElement("button");
+    delete_button.innerText = "Delete Track";
+    delete_button.onclick = _ => {
+        ctrl_socket.send("track_delete\n" + selected_cp.track.id);
+        selected_cp = null;
+    }
+
+    let setBezier2 = document.createElement("button");
+    setBezier2.innerText = "Set to Quadratic Bezier";
+    setBezier2.onclick = _ => {
+        let mid = bezierPoint(selected_cp.track.cordlist, 0.5);
+        ctrl_socket.send("track_adjust\n" + selected_cp.track.id + " " + mid.x + ";" + mid.y);
+        selected_cp = null;
+    }
+
+    let setBezier3 = document.createElement("button");
+    setBezier3.innerText = "Set to Cubic Bezier";
+    setBezier3.onclick = _ => {
+        let mid1 = bezierPoint(selected_cp.track.cordlist, 0.3);
+        let mid2 = bezierPoint(selected_cp.track.cordlist, 0.7);
+        ctrl_socket.send("track_adjust\n" + selected_cp.track.id
+            + " " + mid1.x + ";" + mid1.y
+            + "," + mid2.x + ";" + mid2.y);
+        selected_cp = null;
+    }
+
+    let addTrain = document.createElement("button");
+    addTrain.innerText = "Add Train";
+    addTrain.onclick = _ => {
+        ctrl_socket.send("train_new\n" + selected_cp.track.id + " " + (Math.random() * 200 + 400));
+    }
+
+    selected_display.append(delete_button);
+    selected_display.append(document.createElement("br"));
+    selected_display.append(setBezier2);
+    selected_display.append(document.createElement("br"));
+    selected_display.append(setBezier3);
+    selected_display.append(document.createElement("br"));
+    selected_display.append(addTrain);
 }
 
 main_canvas.addEventListener("mousedown", event => {
@@ -493,7 +600,34 @@ main_canvas.addEventListener("click", function (event) {
 
     if (node_clicked) {
         selected_train = null;
+        selected_cp = null;
         updateSelectedAsNode();
+        return;
+    }
+
+    let cp_clicked = false;
+    tracklist.forEach(track => {
+        track.control_points.forEach(point => {
+            const CONTROL_POINT_R = 25 / 0.7;
+            clickr = Math.sqrt(Math.pow(mousePos.x - point.x, 2) + Math.pow(mousePos.y - point.y, 2));
+            if (clickr <= CONTROL_POINT_R) {
+                if (event.shiftKey) {
+                    if (selected_node) {
+                        // ctrl_socket.send("track_new\n" + selected_node.id + " " + node.id + " #6CF");
+                        cp_clicked = true;
+                    }
+                } else {
+                    selected_cp = point;
+                    cp_clicked = true;
+                }
+            }
+        });
+    });
+
+    if (cp_clicked) {
+        selected_train = null;
+        selected_node = null;
+        updateSelectedAsCP();
         return;
     }
 
@@ -511,13 +645,15 @@ main_canvas.addEventListener("click", function (event) {
 
     if (train_clicked) {
         selected_node = null;
+        selected_cp = null;
         let selected_display = document.getElementById("selected-display");
         selected_display.innerHTML = "Selected: Train#" + selected_train + "<br/>";
         return;
-    } 
+    }
 
     selected_node = null;
     selected_train = null;
+    selected_cp = null;
     let selected_display = document.getElementById("selected-display");
     selected_display.innerHTML = "Selected: None";
     event.preventDefault();
@@ -537,6 +673,30 @@ main_canvas.addEventListener("mousemove", event => {
             selected_node.x += event.movementX / 0.7;
             selected_node.y += event.movementY / 0.7;
             ctrl_socket.send("node_move\n" + selected_node.id + " " + selected_node.x + ";" + selected_node.y);
+        } else if (selected_cp) {
+            switch (selected_cp.type) {
+                case "b2":
+                    selected_cp.x += event.movementX / 0.7;
+                    selected_cp.y += event.movementY / 0.7;
+                    ctrl_socket.send("track_adjust\n" + selected_cp.track.id
+                        + " " + selected_cp.x + ";" + selected_cp.y);
+                    break;
+                case "b31":
+                    selected_cp.x += event.movementX / 0.7;
+                    selected_cp.y += event.movementY / 0.7;
+                    ctrl_socket.send("track_adjust\n" + selected_cp.track.id
+                        + " " + selected_cp.x + ";" + selected_cp.y
+                        + "," + selected_cp.track.cordlist[4] + ";" + selected_cp.track.cordlist[5]);
+                    break;
+                case "b32":
+                    selected_cp.x += event.movementX / 0.7;
+                    selected_cp.y += event.movementY / 0.7;
+                    ctrl_socket.send("track_adjust\n" + selected_cp.track.id
+                        + " " + selected_cp.track.cordlist[2] + ";" + selected_cp.track.cordlist[3]
+                        + "," + selected_cp.x + ";" + selected_cp.y);
+                    break;
+
+            }
         } else {
             relative_x -= event.movementX / 0.7;
             relative_y -= event.movementY / 0.7;
